@@ -1,0 +1,12 @@
+{
+  "source": "manual-test",
+  "environment": "HML",
+  "message_id": "teste-001",
+  "folder": "Autodoc",
+  "subject": "Resumo Instantâneo de Upload - SAE - GUANÁS",
+  "sender": "autodoc@autodocmail.com.br",
+  "received_at": "2026-05-23T10:00:00",
+  "html": "<table><tr><th>Arquivo</th><th>Disciplina</th><th>Pasta</th></tr><tr><td>SAE-ARQ-EP-1102-TER-REV01.dwg</td><td>ARQUITETURA</td><td>SAE - GUANÁS/ARQUITETURA</td></tr></table>",
+  "text": "",
+  "attachments": []
+}

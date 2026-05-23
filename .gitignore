@@ -1,0 +1,36 @@
+# Python / ambiente virtual
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Credenciais
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Storage local
+storage/downloads/*
+storage/temp/*
+storage/hml/*
+storage/browser_profile/
+
+# Mantém pastas vazias no Git se houver .gitkeep
+!storage/downloads/.gitkeep
+!storage/temp/.gitkeep
+!storage/hml/.gitkeep
+
+# Sistema / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Streamlit
+.streamlit/secrets.toml

@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+logs/*
+storage/downloads/*
+storage/temp/*
+storage/hml/*
+storage/browser_profile/*
+.git/
+.gitignore
+*.zip
+*.rar
+*.7z
+.DS_Store
