@@ -35,7 +35,7 @@ from robot.login_manager import check_logged_in, open_login_browser
 from robot.downloader import download as autodoc_download
 
 
-app = FastAPI(title="Autodoc Center V4 Multi-site SharePoint")
+app = FastAPI(title="MIA AUTODOC — Painel e API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -413,122 +413,962 @@ def _panel_html() -> str:
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AUTODOC CENTER — Painel Seguro</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#050505" />
+  <title>MIA AUTODOC — Painel do Cliente</title>
+
   <style>
     :root{
-      --bg:#0b1020;--panel:#121a2e;--line:#263653;--text:#eaf0ff;--muted:#91a0bd;
-      --brand:#A9798B;--ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--violet:#a78bfa;
-      --shadow:0 18px 50px rgba(0,0,0,.35);--radius:18px;
+      --bg:#050505;
+      --surface:#0c0c0e;
+      --surface2:#111114;
+      --surface3:#18181d;
+      --line:rgba(255,255,255,.075);
+      --line2:rgba(169,121,139,.32);
+      --text:#faf7f8;
+      --muted:#b9afb4;
+      --muted2:#80767b;
+      --brand:#A9798B;
+      --brand2:#d2a4b7;
+      --brand3:#7f5b68;
+      --ok:#22c55e;
+      --warn:#f59e0b;
+      --danger:#ef4444;
+      --info:#60a5fa;
+      --shadow:0 34px 110px rgba(0,0,0,.60);
+      --radius:26px;
+      --sidebar:304px;
     }
-    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0%,rgba(169,121,139,.22),transparent 35%),radial-gradient(circle at 80% 10%,rgba(167,139,250,.16),transparent 30%),var(--bg);color:var(--text);font-family:Inter,Segoe UI,Roboto,Arial,sans-serif}
-    .login{min-height:100vh;display:grid;place-items:center;padding:24px}.login-card{width:min(430px,100%);background:rgba(18,26,46,.88);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);padding:28px}.logo{width:52px;height:52px;border-radius:17px;background:linear-gradient(135deg,var(--brand),var(--violet));display:grid;place-items:center;font-weight:900;font-size:24px;margin-bottom:18px}h1{margin:0;font-size:28px;letter-spacing:-.04em}p{color:var(--muted);line-height:1.5}.field{margin:18px 0}label{display:block;color:var(--muted);font-size:13px;margin-bottom:7px}input,select{width:100%;background:#0b1222;border:1px solid var(--line);border-radius:13px;color:var(--text);padding:12px;outline:none}.btn{border:0;border-radius:13px;padding:11px 14px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--brand),#8F6475);cursor:pointer}.btn.secondary{background:#1f2d47;border:1px solid var(--line)}.btn.danger{background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.35)}.btn.ok{background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.35)}.btn:disabled{opacity:.5;cursor:not-allowed}
-    .app{display:none;grid-template-columns:270px 1fr;min-height:100vh}aside{height:100vh;position:sticky;top:0;padding:22px 18px;background:rgba(12,18,34,.82);backdrop-filter:blur(14px);border-right:1px solid var(--line)}.brand{display:flex;gap:12px;align-items:center;margin-bottom:22px}.brand .logo{width:42px;height:42px;margin:0;font-size:18px}.brand b{display:block}.brand span{font-size:12px;color:var(--muted)}nav{display:flex;flex-direction:column;gap:8px}nav button{background:transparent;color:var(--muted);border:1px solid transparent;border-radius:13px;padding:12px;text-align:left;cursor:pointer}nav button.active,nav button:hover{background:rgba(255,255,255,.055);color:white;border-color:rgba(169,121,139,.28)}
-    main{padding:26px}.topbar{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:22px}.topbar h2{margin:0;font-size:28px;letter-spacing:-.04em}.actions{display:flex;gap:10px;flex-wrap:wrap}.grid{display:grid;gap:16px}.cards{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:18px}.card,.panel{background:rgba(18,26,46,.86);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.card{padding:18px}.card .label{color:var(--muted);font-size:13px}.num{font-size:30px;font-weight:900;margin-top:8px}.panel{overflow:hidden;margin-bottom:18px}.head{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 18px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.03)}.head h3{margin:0;font-size:16px}.filters{display:flex;gap:10px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line)}.filters input,.filters select{width:auto;min-width:190px}
-    .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:12px 14px;border-bottom:1px solid rgba(38,54,83,.65);white-space:nowrap;vertical-align:top}th{text-align:left;color:#b9c6df;background:rgba(255,255,255,.025)}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}.pill{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:800;border:1px solid var(--line);background:rgba(255,255,255,.045)}.pill.ok{color:#86efac;border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.12)}.pill.warn{color:#fcd34d;border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.12)}.pill.err{color:#fca5a5;border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.12)}.pill.info{color:#93c5fd;border-color:rgba(59,130,246,.35);background:rgba(59,130,246,.12)}.pill.muted{color:#cbd5e1;border-color:rgba(148,163,184,.25);background:rgba(148,163,184,.08)}.hidden{display:none!important}.empty{padding:34px;text-align:center;color:var(--muted)}
-    pre{background:#080d19;border:1px solid var(--line);color:#dbeafe;padding:14px;border-radius:14px;max-height:460px;overflow:auto;white-space:pre-wrap;word-break:break-word}.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.58);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}.modal{width:min(960px,96vw);max-height:88vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}.modal .body{padding:18px}.toast{position:fixed;right:20px;bottom:20px;background:#101827;border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow);z-index:60;max-width:440px}
-    @media(max-width:1100px){.app{grid-template-columns:1fr}aside{height:auto;position:relative}.cards{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){main{padding:16px}.cards{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column}}
+
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%}
+    body{
+      color:var(--text);
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle at 5% -10%, rgba(169,121,139,.26), transparent 26%),
+        radial-gradient(circle at 95% 0%, rgba(169,121,139,.14), transparent 22%),
+        linear-gradient(180deg,#080809 0%,#050505 48%,#030303 100%);
+      overflow-x:hidden;
+    }
+
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      z-index:-1;
+      pointer-events:none;
+      background-image:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg,rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size:44px 44px;
+      mask-image:linear-gradient(to bottom,rgba(0,0,0,.55),transparent 76%);
+    }
+
+    button,input,select{font:inherit}
+    button{cursor:pointer}
+    .hidden{display:none!important}
+    ::selection{background:rgba(169,121,139,.45)}
+    ::-webkit-scrollbar{width:10px;height:10px}
+    ::-webkit-scrollbar-track{background:#050505}
+    ::-webkit-scrollbar-thumb{background:rgba(169,121,139,.55);border-radius:999px}
+
+    .login{
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      padding:28px;
+    }
+
+    .login-shell{
+      width:min(1080px,100%);
+      min-height:650px;
+      display:grid;
+      grid-template-columns:1.12fr .88fr;
+      overflow:hidden;
+      border:1px solid var(--line);
+      border-radius:40px;
+      background:rgba(10,10,12,.86);
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(18px);
+    }
+
+    .login-left{
+      position:relative;
+      padding:46px;
+      border-right:1px solid var(--line);
+      overflow:hidden;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(169,121,139,.34), transparent 25%),
+        radial-gradient(circle at 76% 62%, rgba(169,121,139,.16), transparent 30%),
+        linear-gradient(135deg, rgba(255,255,255,.05), rgba(255,255,255,.012));
+    }
+
+    .login-left::after{
+      content:"";
+      position:absolute;
+      right:-190px;
+      bottom:-190px;
+      width:430px;
+      height:430px;
+      border-radius:50%;
+      border:1px solid rgba(169,121,139,.30);
+      box-shadow:0 0 0 74px rgba(169,121,139,.045);
+    }
+
+    .brand-row{display:flex;align-items:center;gap:16px;position:relative;z-index:1}
+    .logo{
+      width:64px;height:64px;
+      display:grid;place-items:center;
+      border-radius:22px;
+      background:linear-gradient(135deg,var(--brand2),var(--brand));
+      color:#fff;
+      font-weight:950;
+      letter-spacing:.04em;
+      box-shadow:0 22px 50px rgba(169,121,139,.30);
+      user-select:none;
+    }
+
+    .brand-copy b{display:block;font-size:31px;line-height:.95;letter-spacing:-.06em}
+    .brand-copy b span{color:var(--brand2)}
+    .brand-copy small{display:block;margin-top:8px;color:var(--muted);font-size:11px;letter-spacing:.18em;text-transform:uppercase}
+
+    .login-hero{position:relative;z-index:1;margin-top:82px;max-width:540px}
+    .eyebrow{
+      color:var(--brand2);
+      text-transform:uppercase;
+      letter-spacing:.18em;
+      font-size:11px;
+      font-weight:850;
+      margin-bottom:12px;
+    }
+    .login-hero h1{
+      margin:0;
+      font-size:56px;
+      line-height:.98;
+      letter-spacing:-.08em;
+    }
+    .login-hero p{
+      margin:24px 0 0;
+      color:var(--muted);
+      font-size:16px;
+      line-height:1.75;
+    }
+
+    .login-points{display:flex;flex-wrap:wrap;gap:10px;margin-top:34px}
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:9px 12px;
+      border-radius:999px;
+      border:1px solid rgba(169,121,139,.22);
+      background:rgba(169,121,139,.08);
+      color:#f1dfe7;
+      font-size:12px;
+      font-weight:800;
+    }
+
+    .login-right{
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      padding:46px;
+      background:rgba(5,5,5,.46);
+    }
+    .login-right h2{margin:0;font-size:34px;letter-spacing:-.06em}
+    .login-right p{margin:12px 0 0;color:var(--muted);line-height:1.7}
+
+    .field{margin-top:26px}
+    .label{display:block;margin-bottom:9px;color:#e8dde2;font-size:13px;font-weight:800}
+    .input,select{
+      width:100%;
+      border:1px solid var(--line);
+      background:#08080a;
+      color:var(--text);
+      outline:none;
+      border-radius:18px;
+      padding:15px 16px;
+      transition:.2s ease;
+    }
+    .input:focus,select:focus{
+      border-color:rgba(169,121,139,.72);
+      box-shadow:0 0 0 4px rgba(169,121,139,.13);
+      background:#0c0c0f;
+    }
+
+    .btn{
+      border:0;
+      border-radius:18px;
+      padding:13px 18px;
+      color:white;
+      background:linear-gradient(135deg,var(--brand),var(--brand3));
+      font-weight:900;
+      box-shadow:0 18px 42px rgba(169,121,139,.20);
+      transition:.18s ease;
+      white-space:nowrap;
+    }
+    .btn:hover{filter:brightness(1.07);transform:translateY(-1px)}
+    .btn.secondary{background:rgba(255,255,255,.045);border:1px solid var(--line);box-shadow:none;color:var(--text)}
+    .btn.ghost{background:transparent;border:1px solid rgba(169,121,139,.30);box-shadow:none}
+    .btn.danger{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.28);box-shadow:none;color:#fecaca}
+    .btn.ok{background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.28);box-shadow:none;color:#bbf7d0}
+    .btn.small{padding:9px 12px;border-radius:14px;font-size:13px}
+
+    .app{
+      display:none;
+      min-height:100vh;
+      grid-template-columns:var(--sidebar) minmax(0,1fr);
+    }
+
+    aside{
+      position:sticky;
+      top:0;
+      height:100vh;
+      z-index:10;
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      padding:22px 18px;
+      background:rgba(5,5,6,.90);
+      border-right:1px solid var(--line);
+      backdrop-filter:blur(18px);
+    }
+
+    .sidebar-brand{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      padding:12px 10px 18px;
+      border-bottom:1px solid var(--line);
+    }
+    .sidebar-brand .logo{width:52px;height:52px;border-radius:18px;font-size:13px}
+    .side-title b{display:block;font-size:20px;letter-spacing:-.04em}
+    .side-title b span{color:var(--brand2)}
+    .side-title small{display:block;color:var(--muted);font-size:12px;margin-top:5px}
+
+    .nav{display:grid;gap:7px}
+    .nav button{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      width:100%;
+      padding:13px 14px;
+      border:1px solid transparent;
+      border-radius:18px;
+      background:transparent;
+      color:var(--muted);
+      text-align:left;
+      transition:.18s ease;
+    }
+    .nav button:hover,.nav button.active{
+      color:#fff;
+      border-color:rgba(169,121,139,.32);
+      background:linear-gradient(135deg,rgba(169,121,139,.16),rgba(169,121,139,.055));
+      transform:translateX(2px);
+    }
+    .ico{
+      width:28px;height:28px;
+      display:grid;place-items:center;
+      border-radius:10px;
+      background:rgba(255,255,255,.045);
+      border:1px solid rgba(255,255,255,.055);
+      font-size:13px;
+    }
+    .nav button.active .ico{background:rgba(169,121,139,.18);border-color:rgba(169,121,139,.28)}
+
+    .sidebar-footer{margin-top:auto;display:grid;gap:10px}
+    .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .mini-card{padding:13px;border:1px solid var(--line);border-radius:20px;background:rgba(255,255,255,.035)}
+    .mini-label{color:var(--muted2);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+    .mini-value{margin-top:9px;font-size:24px;font-weight:950;letter-spacing:-.05em}
+
+    main{min-width:0;padding:30px}
+    .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:24px}
+    .topbar h2{margin:0;font-size:44px;line-height:.98;letter-spacing:-.075em}
+    .topbar p{margin:12px 0 0;color:var(--muted);max-width:780px;line-height:1.65}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+
+    .view{display:none}
+    .view.active{display:block}
+
+    .hero{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(330px,.65fr);gap:18px;margin-bottom:18px}
+    .card,.panel,.hero-card{
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      background:linear-gradient(180deg,rgba(255,255,255,.042),rgba(255,255,255,.018));
+      box-shadow:0 18px 60px rgba(0,0,0,.38);
+    }
+    .hero-card{position:relative;overflow:hidden;min-height:245px;padding:26px}
+    .hero-card::after{
+      content:"";
+      position:absolute;
+      right:-120px;top:-120px;
+      width:290px;height:290px;border-radius:50%;
+      background:radial-gradient(circle,rgba(169,121,139,.22),transparent 68%);
+      pointer-events:none;
+    }
+    .hero-card h3{margin:0;max-width:760px;font-size:34px;line-height:1.08;letter-spacing:-.06em}
+    .hero-card p{margin:16px 0 0;max-width:800px;color:var(--muted);line-height:1.75}
+    .hero-tags{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+
+    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:18px}
+    .stat{position:relative;overflow:hidden;padding:19px}
+    .stat::before{
+      content:"";
+      position:absolute;inset:0;
+      background:radial-gradient(circle at top right,rgba(169,121,139,.13),transparent 44%);
+      pointer-events:none;
+    }
+    .stat-label{position:relative;color:var(--muted);font-size:13px}
+    .stat-value{position:relative;margin-top:12px;font-size:40px;font-weight:950;letter-spacing:-.06em}
+    .stat-meta{position:relative;margin-top:10px;color:var(--muted2);font-size:12px}
+
+    .split{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr);gap:18px;margin-bottom:18px}
+    .panel{overflow:hidden}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-bottom:1px solid var(--line)}
+    .panel-head h3{margin:0;font-size:19px;letter-spacing:-.04em}
+    .panel-head p{margin:7px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+    .panel-body{padding:18px 20px}
+
+    .filters{display:flex;flex-wrap:wrap;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line)}
+    .filters .input,.filters select{width:auto;min-width:220px}
+    .filters .input{padding:13px 14px}
+    .filters select{background:#08080a}
+
+    .table-wrap{overflow:auto}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);white-space:nowrap;vertical-align:top}
+    th{text-align:left;color:#d4c5cc;background:rgba(255,255,255,.012);font-size:11px;text-transform:uppercase;letter-spacing:.11em}
+    td.wrap,th.wrap{white-space:normal;min-width:260px}
+    tr:hover td{background:rgba(255,255,255,.018)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#d8d8dc;font-size:12px}
+
+    .pill{
+      display:inline-flex;align-items:center;justify-content:center;
+      padding:6px 10px;border-radius:999px;font-size:12px;font-weight:850;
+      border:1px solid var(--line);background:rgba(255,255,255,.04);
+    }
+    .pill.ok{color:#86efac;border-color:rgba(34,197,94,.26);background:rgba(34,197,94,.10)}
+    .pill.warn{color:#fcd34d;border-color:rgba(245,158,11,.28);background:rgba(245,158,11,.10)}
+    .pill.err{color:#fca5a5;border-color:rgba(239,68,68,.28);background:rgba(239,68,68,.10)}
+    .pill.info{color:#bfdbfe;border-color:rgba(96,165,250,.28);background:rgba(96,165,250,.10)}
+    .pill.muted{color:#d4d4d8;border-color:rgba(212,212,216,.14);background:rgba(212,212,216,.06)}
+
+    .priority-list{display:grid;gap:12px}
+    .priority-item{padding:14px 15px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.026)}
+    .priority-item h4{margin:0;font-size:14px}
+    .priority-item p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.55}
+    .priority-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+    .empty{padding:36px 18px;text-align:center;color:var(--muted)}
+
+    pre{background:#070708;border:1px solid var(--line);color:#f5f5f5;padding:16px;border-radius:18px;max-height:520px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:80;padding:22px;backdrop-filter:blur(10px)}
+    .modal{width:min(980px,96vw);max-height:90vh;overflow:auto;background:rgba(15,15,18,.98);border:1px solid var(--line);border-radius:28px;box-shadow:var(--shadow)}
+    .modal-body{padding:20px}
+    .toast{position:fixed;right:20px;bottom:20px;z-index:90;max-width:440px;background:#101012;border:1px solid var(--line);border-radius:20px;padding:14px 16px;color:var(--text);box-shadow:0 18px 60px rgba(0,0,0,.38)}
+
+    @media(max-width:1220px){
+      .app{grid-template-columns:1fr}
+      aside{position:relative;height:auto}
+      .sidebar-footer{display:none}
+      .nav{grid-template-columns:repeat(3,minmax(0,1fr));display:grid}
+      .hero,.split{grid-template-columns:1fr}
+      .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:820px){
+      main{padding:18px}
+      .login-shell{grid-template-columns:1fr;min-height:auto}
+      .login-left{display:none}
+      .login-right{padding:30px}
+      .topbar{flex-direction:column}
+      .topbar h2{font-size:34px}
+      .stats{grid-template-columns:1fr}
+      .nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .filters{flex-direction:column}
+      .filters .input,.filters select{width:100%;min-width:0}
+    }
+    @media(max-width:540px){
+      .login{padding:16px}
+      .login-right{padding:24px}
+      .brand-copy b{font-size:26px}
+      .nav{grid-template-columns:1fr}
+      aside{padding:16px}
+      main{padding:14px}
+      .hero-card,.panel-body,.panel-head{padding:16px}
+      .hero-card h3{font-size:27px}
+      th,td{padding:12px}
+    }
   </style>
 </head>
+
 <body>
   <section id="login" class="login">
-    <div class="login-card">
-      <div class="logo">A</div>
-      <h1>AUTODOC CENTER</h1>
-      <p>Painel seguro do cliente. A API Key fica no servidor e nunca aparece no navegador.</p>
-      <div class="field"><label>Senha do painel</label><input id="password" type="password" placeholder="Digite a senha" onkeydown="if(event.key==='Enter') login()"></div>
-      <button class="btn" style="width:100%" onclick="login()">Entrar</button>
-      <p id="loginError" style="color:#fca5a5"></p>
+    <div class="login-shell">
+      <div class="login-left">
+        <div class="brand-row">
+          <div class="logo">MIA</div>
+          <div class="brand-copy">
+            <b>MIA <span>AUTODOC</span></b>
+            <small>Operação documental inteligente</small>
+          </div>
+        </div>
+
+        <div class="login-hero">
+          <div class="eyebrow">Painel premium do cliente</div>
+          <h1>Controle elegante para arquivos, robôs e SharePoint.</h1>
+          <p>Uma experiência executiva, moderna e segura para acompanhar a operação AutoDoc sem expor chaves, senhas ou dados técnicos sensíveis.</p>
+          <div class="login-points">
+            <span class="tag">API Key protegida</span>
+            <span class="tag">Dashboard executivo</span>
+            <span class="tag">Área técnica separada</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="login-right">
+        <div class="brand-row" style="margin-bottom:28px">
+          <div class="logo">MIA</div>
+          <div class="brand-copy">
+            <b>MIA <span>AUTODOC</span></b>
+            <small>Acesso seguro</small>
+          </div>
+        </div>
+
+        <h2>Entrar no painel</h2>
+        <p>Use a senha definida para o cliente. A sessão é protegida por cookie seguro e expira automaticamente.</p>
+
+        <div class="field">
+          <label class="label">Senha do painel</label>
+          <input id="password" class="input" type="password" placeholder="Digite a senha" autocomplete="current-password" onkeydown="if(event.key==='Enter') login()" />
+        </div>
+
+        <button class="btn" style="width:100%;margin-top:10px" onclick="login()">Entrar</button>
+        <p id="loginError" style="color:#fca5a5;margin-top:16px"></p>
+      </div>
     </div>
   </section>
 
   <section id="app" class="app">
     <aside>
-      <div class="brand"><div class="logo">A</div><div><b>AUTODOC CENTER</b><span>Painel Cliente</span></div></div>
-      <nav>
-        <button class="active" data-view="dashboard">📊 Dashboard</button>
-        <button data-view="files">📁 Arquivos</button>
-        <button data-view="emails">✉️ E-mails</button>
-        <button data-view="robot">🤖 Fila do Robô</button>
-        <button data-view="sharepoint">🟦 SharePoint</button>
-        <button data-view="errors">⚠️ Erros</button>
-        <button data-view="settings">⚙️ Status</button>
-      </nav>
-      <div style="margin-top:18px"><button class="btn danger" style="width:100%" onclick="logout()">Sair</button></div>
-    </aside>
-    <main>
-      <div class="topbar"><div><h2 id="title">Dashboard</h2><p id="subtitle">Visão geral da operação.</p></div><div class="actions"><button class="btn secondary" onclick="refresh()">Atualizar</button></div></div>
-
-      <section id="view-dashboard" class="view">
-        <div class="grid cards">
-          <div class="card"><div class="label">Arquivos</div><div class="num" id="kFiles">--</div></div>
-          <div class="card"><div class="label">Aguardando download</div><div class="num" id="kPending">--</div></div>
-          <div class="card"><div class="label">Salvos</div><div class="num" id="kSaved">--</div></div>
-          <div class="card"><div class="label">Erros</div><div class="num" id="kErrors">--</div></div>
+      <div class="sidebar-brand">
+        <div class="logo">MIA</div>
+        <div class="side-title">
+          <b>MIA <span>AUTODOC</span></b>
+          <small>Painel do Cliente</small>
         </div>
-        <div class="panel"><div class="head"><h3>Health</h3><button class="btn secondary" onclick="loadHealth()">Testar</button></div><div class="table-wrap"><table><thead><tr><th>Serviço</th><th>Status</th><th>Detalhes</th></tr></thead><tbody id="healthRows"></tbody></table></div></div>
-        <div class="panel"><div class="head"><h3>Arquivos recentes</h3></div><div class="table-wrap"><table><thead><tr><th>Arquivo</th><th>Projeto</th><th>Disciplina</th><th>Status</th><th>Score</th><th>Destino</th></tr></thead><tbody id="recentFiles"></tbody></table></div></div>
+      </div>
+
+      <nav class="nav">
+        <button class="active" data-view="dashboard"><span class="ico">◆</span> Dashboard</button>
+        <button data-view="files"><span class="ico">▣</span> Arquivos</button>
+        <button data-view="emails"><span class="ico">✉</span> E-mails</button>
+        <button data-view="robot"><span class="ico">⚙</span> Fila do Robô</button>
+        <button data-view="sharepoint"><span class="ico">⌘</span> SharePoint</button>
+        <button data-view="system"><span class="ico">◌</span> Sistema</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="mini-grid">
+          <div class="mini-card"><div class="mini-label">Salvos</div><div id="sideSaved" class="mini-value">0</div></div>
+          <div class="mini-card"><div class="mini-label">Pendentes</div><div id="sidePending" class="mini-value">0</div></div>
+        </div>
+        <button class="btn danger" onclick="logout()">Sair</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <div id="pageEyebrow" class="eyebrow">Visão executiva</div>
+          <h2 id="pageTitle">Dashboard</h2>
+          <p id="pageSubtitle">Resumo claro da operação, com foco em resultados, pendências e pontos de atenção.</p>
+        </div>
+        <div class="actions">
+          <button class="btn secondary small" onclick="refreshCurrent()">Atualizar</button>
+        </div>
+      </header>
+
+      <section id="view-dashboard" class="view active">
+        <div class="hero">
+          <div class="hero-card">
+            <div class="eyebrow">MIA AUTODOC</div>
+            <h3>Operação documental automatizada com uma experiência premium.</h3>
+            <p>O dashboard inicial mostra somente o que importa para tomada de decisão. Indicadores técnicos, integrações e diagnósticos ficam separados na área Sistema.</p>
+            <div class="hero-tags">
+              <span class="tag">Dashboard executivo</span>
+              <span class="tag">Preto premium</span>
+              <span class="tag">Destaque #A9798B</span>
+              <span class="tag">Responsivo</span>
+            </div>
+          </div>
+
+          <div class="hero-card">
+            <div class="eyebrow">Prioridades</div>
+            <div id="priorityList" class="priority-list"></div>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="card stat"><div class="stat-label">Arquivos totais</div><div id="kFiles" class="stat-value">--</div><div class="stat-meta">Volume detectado na operação</div></div>
+          <div class="card stat"><div class="stat-label">Aguardando download</div><div id="kPending" class="stat-value">--</div><div class="stat-meta">Itens prontos para automação</div></div>
+          <div class="card stat"><div class="stat-label">Salvos</div><div id="kSaved" class="stat-value">--</div><div class="stat-meta">Arquivos concluídos</div></div>
+          <div class="card stat"><div class="stat-label">Com atenção</div><div id="kErrors" class="stat-value">--</div><div class="stat-meta">Erros ou exceções</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Arquivos recentes</h3><p>Últimos itens detectados e processados pelo sistema.</p></div>
+            <button class="btn secondary small" onclick="nav('files')">Ver todos</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Arquivo</th><th>Projeto</th><th>Disciplina</th><th>Status</th><th>Score</th><th class="wrap">Destino</th></tr></thead>
+              <tbody id="recentFiles"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
-      <section id="view-files" class="view hidden">
-        <div class="panel"><div class="head"><h3>Arquivos</h3><button class="btn secondary" onclick="loadFiles()">Atualizar</button></div><div class="filters"><input id="fileSearch" placeholder="Buscar..." oninput="renderFiles()"><select id="fileStatus" onchange="renderFiles()"><option value="">Todos status</option></select></div><div class="table-wrap"><table><thead><tr><th>Arquivo</th><th>Projeto</th><th>Disciplina</th><th>AutoDoc</th><th>SharePoint</th><th>Status</th><th>Score</th><th>Ações</th></tr></thead><tbody id="filesRows"></tbody></table></div></div>
+      <section id="view-files" class="view">
+        <div class="panel">
+          <div class="panel-head"><div><h3>Arquivos</h3><p>Controle dos arquivos extraídos, destinos e ações.</p></div></div>
+          <div class="filters">
+            <input id="fileSearch" class="input" placeholder="Buscar por arquivo, projeto, disciplina ou caminho" oninput="renderFiles()" />
+            <select id="fileStatus" onchange="renderFiles()"><option value="">Todos status</option></select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Arquivo</th><th>Projeto</th><th>Disciplina</th><th>AutoDoc</th><th class="wrap">SharePoint</th><th>Status</th><th>Score</th><th>Ações</th></tr></thead>
+              <tbody id="filesRows"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
-      <section id="view-emails" class="view hidden">
-        <div class="panel"><div class="head"><h3>E-mails</h3><button class="btn secondary" onclick="loadEmails()">Atualizar</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Assunto</th><th>Remetente</th><th>Status</th><th>Tipo</th><th>Ações</th></tr></thead><tbody id="emailsRows"></tbody></table></div></div>
+      <section id="view-emails" class="view">
+        <div class="panel">
+          <div class="panel-head"><div><h3>E-mails</h3><p>Entradas recebidas pelo sistema e origem dos arquivos detectados.</p></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data</th><th class="wrap">Assunto</th><th>Remetente</th><th>Status</th><th>Tipo</th><th>Ações</th></tr></thead>
+              <tbody id="emailsRows"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
-      <section id="view-robot" class="view hidden">
-        <div class="panel"><div class="head"><h3>Fila do Robô</h3><div class="actions"><button class="btn secondary" onclick="loadJobs()">Atualizar</button><button class="btn" onclick="claimNext()">Pegar próximo</button></div></div><div class="table-wrap"><table><thead><tr><th>Job</th><th>Arquivo</th><th>Status</th><th>Attempts</th><th>Worker</th><th>Próxima</th><th>Erro</th><th>Ações</th></tr></thead><tbody id="jobsRows"></tbody></table></div></div>
+      <section id="view-robot" class="view">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Fila do Robô</h3><p>Status dos jobs, tentativas e reprocessamentos automáticos.</p></div>
+            <button class="btn secondary small" onclick="claimNext()">Pegar próximo job</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Job</th><th>Arquivo</th><th>Status</th><th>Tentativas</th><th>Worker</th><th>Próxima</th><th class="wrap">Erro</th><th>Ações</th></tr></thead>
+              <tbody id="jobsRows"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
-      <section id="view-sharepoint" class="view hidden">
-        <div class="panel"><div class="head"><h3>SharePoint</h3><button class="btn secondary" onclick="loadSites()">Atualizar</button></div><div class="table-wrap"><table><thead><tr><th>Projeto</th><th>URL</th><th>Library</th><th>Ativo</th><th>HML</th><th>Map</th><th>Prod</th><th>Ações</th></tr></thead><tbody id="sitesRows"></tbody></table></div></div>
+      <section id="view-sharepoint" class="view">
+        <div class="panel">
+          <div class="panel-head"><div><h3>SharePoint</h3><p>Sites, bibliotecas e mapeamentos conectados à operação.</p></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Projeto</th><th class="wrap">URL</th><th>Biblioteca</th><th>Ativo</th><th>HML</th><th>Mapa</th><th>Prod</th><th>Ações</th></tr></thead>
+              <tbody id="sitesRows"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
-      <section id="view-errors" class="view hidden">
-        <div class="panel"><div class="head"><h3>Erros</h3><button class="btn secondary" onclick="loadErrors()">Atualizar</button></div><div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Mensagem</th><th>Arquivo</th><th>Status</th><th>Data</th><th>Ações</th></tr></thead><tbody id="errorsRows"></tbody></table></div></div>
-      </section>
+      <section id="view-system" class="view">
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head">
+              <div><h3>Status dos serviços</h3><p>Diagnóstico técnico separado do dashboard executivo.</p></div>
+              <button class="btn secondary small" onclick="loadHealth()">Testar</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Serviço</th><th>Status</th><th>Detalhes</th></tr></thead>
+                <tbody id="healthRows"></tbody>
+              </table>
+            </div>
+          </div>
 
-      <section id="view-settings" class="view hidden">
-        <div class="panel"><div class="head"><h3>Status / Configuração</h3><button class="btn secondary" onclick="loadSettings()">Atualizar</button></div><div style="padding:18px"><pre id="settingsJson">{}</pre></div></div>
+          <div class="panel">
+            <div class="panel-head"><div><h3>Erros recentes</h3><p>Ocorrências técnicas e operacionais registradas.</p></div></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Tipo</th><th class="wrap">Mensagem</th><th>Status</th><th>Ações</th></tr></thead>
+                <tbody id="errorsRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>Configurações carregadas</h3><p>Resumo seguro da configuração do ambiente, sem exibir segredos.</p></div></div>
+          <div class="panel-body"><pre id="settingsJson">{}</pre></div>
+        </div>
       </section>
     </main>
   </section>
 
-  <div class="modal-backdrop" id="modal"><div class="modal"><div class="head"><h3 id="modalTitle">Detalhes</h3><button class="btn secondary" onclick="closeModal()">Fechar</button></div><div class="body"><pre id="modalBody"></pre></div></div></div>
+  <div id="modal" class="modal-backdrop" onclick="if(event.target.id==='modal') closeModal()">
+    <div class="modal">
+      <div class="panel-head"><div><h3 id="modalTitle">Detalhes</h3></div><button class="btn secondary small" onclick="closeModal()">Fechar</button></div>
+      <div class="modal-body"><pre id="modalBody"></pre></div>
+    </div>
+  </div>
 
   <script>
-    const state={files:[],emails:[],jobs:[],sites:[],errors:[]};
-    const meta={dashboard:['Dashboard','Visão geral da operação.'],files:['Arquivos','Controle de arquivos e destinos.'],emails:['E-mails','E-mails processados.'],robot:['Fila do Robô','Jobs de download/upload.'],sharepoint:['SharePoint','Sites e HML.'],errors:['Erros','Falhas e auditoria.'],settings:['Status','Ambiente e integrações.']};
+    const state = { current:'dashboard', summary:null, files:[], emails:[], jobs:[], sites:[], errors:[] };
 
-    async function call(path,opt={}){const r=await fetch(path,{credentials:'include',headers:{'Content-Type':'application/json'},...opt});const t=await r.text();let d;try{d=t?JSON.parse(t):{}}catch{d={raw:t}};if(!r.ok)throw new Error(d.detail||JSON.stringify(d));return d}
-    async function login(){try{await call('/panel/login',{method:'POST',body:JSON.stringify({password:document.getElementById('password').value})});document.getElementById('login').style.display='none';document.getElementById('app').style.display='grid';refresh()}catch(e){document.getElementById('loginError').textContent=e.message}}
-    async function logout(){await call('/panel/logout',{method:'POST'}).catch(()=>{});location.reload()}
-    async function check(){try{await call('/panel/api/summary');document.getElementById('login').style.display='none';document.getElementById('app').style.display='grid';refresh()}catch{}}
-    function nav(v){document.querySelectorAll('.view').forEach(x=>x.classList.add('hidden'));document.getElementById('view-'+v).classList.remove('hidden');document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));document.getElementById('title').textContent=meta[v][0];document.getElementById('subtitle').textContent=meta[v][1];if(v==='files')loadFiles();if(v==='emails')loadEmails();if(v==='robot')loadJobs();if(v==='sharepoint')loadSites();if(v==='errors')loadErrors();if(v==='settings')loadSettings()}
-    document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>nav(b.dataset.view));
-    async function refresh(){await Promise.allSettled([loadSummary(),loadHealth(),loadFiles(),loadSites()])}
-    async function loadSummary(){const s=await call('/panel/api/summary');document.getElementById('kFiles').textContent=s.files_total??0;document.getElementById('kPending').textContent=s.files_waiting_download??0;document.getElementById('kSaved').textContent=s.files_saved??0;document.getElementById('kErrors').textContent=s.errors_total??0}
-    async function loadHealth(){const h=await call('/panel/api/health');document.getElementById('healthRows').innerHTML=Object.entries(h).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${pill(v.ok!==false?'OK':'ERRO',v.ok!==false?'ok':'err')}</td><td><button class="btn secondary" onclick='show("${k}",${attr(v)})'>Ver</button></td></tr>`).join('')}
-    async function loadFiles(){const d=await call('/panel/api/files?limit=500');state.files=d.files||[];fillStatus();renderFiles();renderRecent()}
-    function fillStatus(){const s=document.getElementById('fileStatus'),cur=s.value;const list=[...new Set(state.files.map(f=>f.status).filter(Boolean))].sort();s.innerHTML='<option value="">Todos status</option>'+list.map(x=>`<option>${esc(x)}</option>`).join('');s.value=cur}
-    function renderFiles(){const q=(document.getElementById('fileSearch')?.value||'').toLowerCase(),st=(document.getElementById('fileStatus')?.value||'');let arr=state.files.filter(f=>(!st||f.status===st)&&(!q||[f.file_name,f.project_detected,f.discipline_detected,f.autodoc_path,f.sharepoint_suggested_path,f.status].join(' ').toLowerCase().includes(q)));document.getElementById('filesRows').innerHTML=arr.map(f=>`<tr><td><b>${esc(f.file_name)}</b><br><span class=mono>${short(f.id)}</span></td><td>${esc(f.project_detected)}</td><td>${esc(f.discipline_detected)}</td><td>${esc(f.autodoc_path)}</td><td>${esc(f.sharepoint_final_path||f.sharepoint_suggested_path)}</td><td>${status(f.status)}</td><td>${score(f.confidence_score)}</td><td><div class=actions><button class="btn secondary" onclick='show("Arquivo",${attr(f)})'>Ver</button><button class="btn ok" onclick="act('/panel/api/files/${f.id}/approve')">Aprovar</button><button class="btn" onclick="act('/panel/api/files/${f.id}/queue')">Fila</button><button class="btn danger" onclick="act('/panel/api/files/${f.id}/ignore')">Ignorar</button></div></td></tr>`).join('')||empty(8,'Nenhum arquivo.')}
-    function renderRecent(){document.getElementById('recentFiles').innerHTML=state.files.slice(0,8).map(f=>`<tr><td>${esc(f.file_name)}</td><td>${esc(f.project_detected)}</td><td>${esc(f.discipline_detected)}</td><td>${status(f.status)}</td><td>${score(f.confidence_score)}</td><td>${esc(f.sharepoint_suggested_path)}</td></tr>`).join('')||empty(6,'Nenhum arquivo.')}
-    async function loadEmails(){const d=await call('/panel/api/emails?limit=300');state.emails=d.emails||[];document.getElementById('emailsRows').innerHTML=state.emails.map(e=>`<tr><td>${date(e.created_at||e.received_at)}</td><td>${esc(e.subject)}</td><td>${esc(e.sender)}</td><td>${status(e.status)}</td><td>${esc(e.email_type)}</td><td><button class="btn secondary" onclick='show("E-mail",${attr(e)})'>Ver</button></td></tr>`).join('')||empty(6,'Nenhum e-mail.')}
-    async function loadJobs(){const d=await call('/panel/api/robot/jobs?limit=300');state.jobs=d.jobs||[];document.getElementById('jobsRows').innerHTML=state.jobs.map(j=>`<tr><td><span class=mono>${short(j.id)}</span></td><td><span class=mono>${short(j.file_id)}</span></td><td>${status(j.status)}</td><td>${j.attempts||0}/${j.max_attempts||3}</td><td>${esc(j.locked_by)}</td><td>${date(j.next_attempt_at)}</td><td>${esc(shortText(j.last_error))}</td><td><button class="btn secondary" onclick='show("Job",${attr(j)})'>Ver</button></td></tr>`).join('')||empty(8,'Nenhum job.')}
-    async function claimNext(){const d=await call('/panel/api/robot/jobs/next',{method:'POST'});show('Próximo job',d);loadJobs()}
-    async function loadSites(){const d=await call('/panel/api/sites');state.sites=d.sites||[];document.getElementById('sitesRows').innerHTML=state.sites.map(s=>`<tr><td><b>${esc(s.project_name||s.project_normalized)}</b><br><span class=mono>${short(s.id)}</span></td><td>${esc(s.site_url)}</td><td>${esc(s.library_name)}</td><td>${bool(s.active)}</td><td>${bool(s.hml_ready)}</td><td>${bool(s.folder_map_ready)}</td><td>${bool(s.prod_ready)}</td><td><button class="btn secondary" onclick='show("Site",${attr(s)})'>Ver</button></td></tr>`).join('')||empty(8,'Nenhum site.')}
-    async function loadErrors(){const d=await call('/panel/api/errors?limit=300');state.errors=d.errors||[];document.getElementById('errorsRows').innerHTML=state.errors.map(e=>`<tr><td>${esc(e.error_type)}</td><td>${esc(e.message)}</td><td><span class=mono>${short(e.file_id)}</span></td><td>${status(e.status)}</td><td>${date(e.created_at)}</td><td><button class="btn secondary" onclick='show("Erro",${attr(e)})'>Ver</button></td></tr>`).join('')||empty(6,'Nenhum erro.')}
-    async function loadSettings(){const d=await call('/panel/api/settings');document.getElementById('settingsJson').textContent=JSON.stringify(d,null,2)}
-    async function act(path){try{const d=await call(path,{method:'POST'});show('Resultado',d);loadFiles()}catch(e){toast(e.message)}}
-    function status(s){s=s||'—';let u=String(s).toUpperCase(),c='muted';if(u.includes('DONE')||u.includes('OK')||u.includes('SALVO'))c='ok';else if(u.includes('PENDING')||u.includes('AGUARDANDO')||u.includes('RUNNING'))c='warn';else if(u.includes('ERRO')||u.includes('ERROR')||u.includes('FAIL'))c='err';else if(u.includes('PRONTO')||u.includes('RECEBIDO'))c='info';return pill(s,c)}
-    function score(v){let n=Number(v||0),c=n>=90?'ok':n>=60?'warn':'err';return pill(isFinite(n)?n:0,c)}function bool(v){return pill(v?'Sim':'Não',v?'ok':'muted')}function pill(t,c){return `<span class="pill ${c}">${esc(t)}</span>`}function empty(c,m){return `<tr><td colspan="${c}" class=empty>${esc(m)}</td></tr>`}function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}function short(id){id=String(id||'');return id.length>12?id.slice(0,8)+'…'+id.slice(-4):id}function shortText(v){let s=typeof v==='string'?v:JSON.stringify(v||'');return s.length>100?s.slice(0,100)+'…':s}function date(v){if(!v)return'';try{return new Date(v).toLocaleString('pt-BR')}catch{return v}}function attr(o){return encodeURIComponent(JSON.stringify(o??{},null,2))}
-    function show(t,v){let text=typeof v==='string'?decodeURIComponent(v):JSON.stringify(v,null,2);document.getElementById('modalTitle').textContent=t;document.getElementById('modalBody').textContent=text;document.getElementById('modal').style.display='flex'}function closeModal(){document.getElementById('modal').style.display='none'}function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),4200)}
-    addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});check();
+    const meta = {
+      dashboard:['Visão executiva','Dashboard','Resumo claro da operação, com foco em resultados, pendências e pontos de atenção.'],
+      files:['Operação documental','Arquivos','Controle dos arquivos extraídos, destinos e ações operacionais.'],
+      emails:['Origem dos dados','E-mails','Entradas recebidas pelo sistema e origem dos arquivos detectados.'],
+      robot:['Automação','Fila do Robô','Status dos jobs, tentativas e reprocessamentos automáticos.'],
+      sharepoint:['Infraestrutura documental','SharePoint','Sites, bibliotecas e mapeamentos conectados à operação.'],
+      system:['Área técnica','Sistema','Status dos serviços, erros e configurações técnicas separadas do dashboard.']
+    };
+
+    async function call(path, options={}){
+      const response = await fetch(path, {
+        credentials:'include',
+        headers:{'Content-Type':'application/json', ...(options.headers || {})},
+        ...options
+      });
+
+      const text = await response.text();
+      let data;
+      try { data = text ? JSON.parse(text) : {}; } catch { data = {raw:text}; }
+
+      if(response.status === 401){
+        showLogin();
+        throw new Error('Sessão expirada. Entre novamente.');
+      }
+
+      if(!response.ok) throw new Error(data.detail || data.message || JSON.stringify(data));
+      return data;
+    }
+
+    function showLogin(){ document.getElementById('login').style.display='grid'; document.getElementById('app').style.display='none'; }
+    function showApp(){ document.getElementById('login').style.display='none'; document.getElementById('app').style.display='grid'; }
+
+    async function login(){
+      const error = document.getElementById('loginError');
+      error.textContent = '';
+      try{
+        await call('/panel/login', { method:'POST', body: JSON.stringify({password: document.getElementById('password').value}) });
+        document.getElementById('password').value = '';
+        await initApp();
+      }catch(e){ error.textContent = e.message; }
+    }
+
+    async function logout(){ await call('/panel/logout', {method:'POST'}).catch(()=>{}); showLogin(); }
+    async function check(){ try{ await call('/panel/api/summary'); await initApp(); }catch{ showLogin(); } }
+
+    async function initApp(){
+      showApp();
+      document.querySelectorAll('.nav button').forEach(button => button.onclick = () => nav(button.dataset.view));
+      await loadCore();
+      nav(state.current || 'dashboard');
+    }
+
+    function nav(view){
+      state.current = view;
+      document.querySelectorAll('.view').forEach(section => section.classList.toggle('active', section.id === 'view-' + view));
+      document.querySelectorAll('.nav button').forEach(button => button.classList.toggle('active', button.dataset.view === view));
+      const [eyebrow,title,subtitle] = meta[view] || meta.dashboard;
+      document.getElementById('pageEyebrow').textContent = eyebrow;
+      document.getElementById('pageTitle').textContent = title;
+      document.getElementById('pageSubtitle').textContent = subtitle;
+      loadView(view).catch(e => toast(e.message));
+    }
+
+    async function refreshCurrent(){ await loadView(state.current); toast('Painel atualizado.'); }
+    async function loadCore(){ await Promise.all([loadSummary(), loadFiles()]); renderDashboard(); }
+
+    async function loadView(view){
+      if(view === 'dashboard') await loadCore();
+      else if(view === 'files'){ if(!state.files.length) await loadFiles(); renderFiles(); }
+      else if(view === 'emails') await loadEmails();
+      else if(view === 'robot') await loadJobs();
+      else if(view === 'sharepoint') await loadSites();
+      else if(view === 'system') await Promise.all([loadHealth(), loadErrors(), loadSettings()]);
+    }
+
+    async function loadSummary(){
+      const summary = await call('/panel/api/summary');
+      state.summary = summary;
+      document.getElementById('kFiles').textContent = summary.files_total ?? 0;
+      document.getElementById('kPending').textContent = summary.files_waiting_download ?? 0;
+      document.getElementById('kSaved').textContent = summary.files_saved ?? 0;
+      document.getElementById('kErrors').textContent = (summary.files_error ?? 0) + (summary.errors_total ?? 0);
+      document.getElementById('sideSaved').textContent = summary.files_saved ?? 0;
+      document.getElementById('sidePending').textContent = summary.files_waiting_download ?? 0;
+    }
+
+    async function loadFiles(){
+      const data = await call('/panel/api/files?limit=500');
+      state.files = data.files || [];
+      fillFileStatus();
+      renderFiles();
+      renderDashboard();
+    }
+
+    function fillFileStatus(){
+      const select = document.getElementById('fileStatus');
+      if(!select) return;
+      const current = select.value;
+      const statuses = [...new Set(state.files.map(f => f.status).filter(Boolean))].sort();
+      select.innerHTML = '<option value="">Todos status</option>' + statuses.map(s => `<option>${escapeHtml(s)}</option>`).join('');
+      select.value = current;
+    }
+
+    function renderDashboard(){ renderRecentFiles(); renderPriorities(); }
+
+    function renderRecentFiles(){
+      const rows = document.getElementById('recentFiles');
+      if(!rows) return;
+      rows.innerHTML = state.files.slice(0,8).map(f => `
+        <tr>
+          <td><b>${escapeHtml(f.file_name)}</b></td>
+          <td>${escapeHtml(f.project_detected)}</td>
+          <td>${escapeHtml(f.discipline_detected)}</td>
+          <td>${statusPill(f.status)}</td>
+          <td>${scorePill(f.confidence_score)}</td>
+          <td class="wrap">${escapeHtml(f.sharepoint_final_path || f.sharepoint_suggested_path || f.autodoc_path)}</td>
+        </tr>
+      `).join('') || emptyRow(6, 'Nenhum arquivo recente encontrado.');
+    }
+
+    function renderPriorities(){
+      const box = document.getElementById('priorityList');
+      if(!box) return;
+
+      const important = state.files
+        .filter(f => String(f.status || '').toUpperCase().includes('AGUARDANDO') || String(f.status || '').toUpperCase().includes('ERRO') || f.error_message)
+        .slice(0,5);
+
+      box.innerHTML = important.map(f => `
+        <div class="priority-item">
+          <h4>${escapeHtml(f.file_name || 'Arquivo sem nome')}</h4>
+          <p>Projeto: <b>${escapeHtml(f.project_detected || 'Não identificado')}</b> · Disciplina: <b>${escapeHtml(f.discipline_detected || 'Não identificada')}</b></p>
+          <div class="priority-meta">
+            ${statusPill(f.status)}
+            ${scorePill(f.confidence_score)}
+            <span class="pill muted">${escapeHtml(f.autodoc_path || 'Sem caminho')}</span>
+          </div>
+        </div>
+      `).join('') || '<div class="empty">Nenhuma prioridade no momento.</div>';
+    }
+
+    function renderFiles(){
+      const query = (document.getElementById('fileSearch')?.value || '').toLowerCase();
+      const status = document.getElementById('fileStatus')?.value || '';
+      const rows = document.getElementById('filesRows');
+      if(!rows) return;
+
+      const filtered = state.files.filter(f => {
+        const haystack = [f.file_name, f.project_detected, f.discipline_detected, f.autodoc_path, f.sharepoint_suggested_path, f.status].join(' ').toLowerCase();
+        if(status && f.status !== status) return false;
+        if(query && !haystack.includes(query)) return false;
+        return true;
+      });
+
+      rows.innerHTML = filtered.map(f => `
+        <tr>
+          <td><b>${escapeHtml(f.file_name)}</b><br><span class="mono">${shortId(f.id)}</span></td>
+          <td>${escapeHtml(f.project_detected)}</td>
+          <td>${escapeHtml(f.discipline_detected)}</td>
+          <td>${escapeHtml(f.autodoc_path)}</td>
+          <td class="wrap">${escapeHtml(f.sharepoint_final_path || f.sharepoint_suggested_path)}</td>
+          <td>${statusPill(f.status)}</td>
+          <td>${scorePill(f.confidence_score)}</td>
+          <td>
+            <div class="actions">
+              <button class="btn secondary small" onclick='showJson("Arquivo", ${jsonAttr(f)})'>Ver</button>
+              <button class="btn ok small" onclick="fileAction('/panel/api/files/${f.id}/approve')">Aprovar</button>
+              <button class="btn small" onclick="fileAction('/panel/api/files/${f.id}/queue')">Fila</button>
+              <button class="btn danger small" onclick="fileAction('/panel/api/files/${f.id}/ignore')">Ignorar</button>
+            </div>
+          </td>
+        </tr>
+      `).join('') || emptyRow(8, 'Nenhum arquivo encontrado.');
+    }
+
+    async function loadEmails(){
+      const data = await call('/panel/api/emails?limit=300');
+      state.emails = data.emails || [];
+      document.getElementById('emailsRows').innerHTML = state.emails.map(e => `
+        <tr>
+          <td>${formatDate(e.created_at || e.received_at)}</td>
+          <td class="wrap">${escapeHtml(e.subject)}</td>
+          <td>${escapeHtml(e.sender)}</td>
+          <td>${statusPill(e.status)}</td>
+          <td>${escapeHtml(e.email_type)}</td>
+          <td><button class="btn secondary small" onclick='showJson("E-mail", ${jsonAttr(e)})'>Ver</button></td>
+        </tr>
+      `).join('') || emptyRow(6, 'Nenhum e-mail encontrado.');
+    }
+
+    async function loadJobs(){
+      const data = await call('/panel/api/robot/jobs?limit=300');
+      state.jobs = data.jobs || [];
+      document.getElementById('jobsRows').innerHTML = state.jobs.map(j => `
+        <tr>
+          <td><span class="mono">${shortId(j.id)}</span></td>
+          <td><span class="mono">${shortId(j.file_id)}</span></td>
+          <td>${statusPill(j.status)}</td>
+          <td>${j.attempts || 0}/${j.max_attempts || 3}</td>
+          <td>${escapeHtml(j.locked_by)}</td>
+          <td>${formatDate(j.next_attempt_at)}</td>
+          <td class="wrap">${escapeHtml(shortText(j.last_error))}</td>
+          <td><button class="btn secondary small" onclick='showJson("Job", ${jsonAttr(j)})'>Ver</button></td>
+        </tr>
+      `).join('') || emptyRow(8, 'Nenhum job encontrado.');
+    }
+
+    async function claimNext(){
+      const data = await call('/panel/api/robot/jobs/next', {method:'POST'});
+      showJson('Próximo job', data);
+      await loadJobs();
+    }
+
+    async function loadSites(){
+      const data = await call('/panel/api/sites');
+      state.sites = data.sites || [];
+      document.getElementById('sitesRows').innerHTML = state.sites.map(s => `
+        <tr>
+          <td><b>${escapeHtml(s.project_name || s.project_normalized)}</b><br><span class="mono">${shortId(s.id)}</span></td>
+          <td class="wrap">${escapeHtml(s.site_url)}</td>
+          <td>${escapeHtml(s.library_name)}</td>
+          <td>${boolPill(s.active)}</td>
+          <td>${boolPill(s.hml_ready)}</td>
+          <td>${boolPill(s.folder_map_ready)}</td>
+          <td>${boolPill(s.prod_ready)}</td>
+          <td><button class="btn secondary small" onclick='showJson("Site", ${jsonAttr(s)})'>Ver</button></td>
+        </tr>
+      `).join('') || emptyRow(8, 'Nenhum site cadastrado.');
+    }
+
+    async function loadHealth(){
+      const data = await call('/panel/api/health');
+      document.getElementById('healthRows').innerHTML = Object.entries(data).map(([name, value]) => `
+        <tr>
+          <td>${escapeHtml(name)}</td>
+          <td>${pill(value.ok !== false ? 'OK' : 'ERRO', value.ok !== false ? 'ok' : 'err')}</td>
+          <td><button class="btn secondary small" onclick='showJson("${escapeHtml(name)}", ${jsonAttr(value)})'>Ver</button></td>
+        </tr>
+      `).join('') || emptyRow(3, 'Sem dados técnicos.');
+    }
+
+    async function loadErrors(){
+      const data = await call('/panel/api/errors?limit=300');
+      state.errors = data.errors || [];
+      document.getElementById('errorsRows').innerHTML = state.errors.map(e => `
+        <tr>
+          <td>${escapeHtml(e.error_type)}</td>
+          <td class="wrap">${escapeHtml(e.message)}</td>
+          <td>${statusPill(e.status)}</td>
+          <td><button class="btn secondary small" onclick='showJson("Erro", ${jsonAttr(e)})'>Ver</button></td>
+        </tr>
+      `).join('') || emptyRow(4, 'Nenhum erro registrado.');
+    }
+
+    async function loadSettings(){
+      const data = await call('/panel/api/settings');
+      document.getElementById('settingsJson').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function fileAction(path){
+      try{
+        const data = await call(path, {method:'POST'});
+        showJson('Resultado', data);
+        await loadCore();
+      }catch(e){ toast(e.message); }
+    }
+
+    function statusPill(value){
+      const text = value || '—';
+      const up = String(text).toUpperCase();
+      let cls = 'muted';
+      if(up.includes('DONE') || up.includes('OK') || up.includes('SALVO')) cls='ok';
+      else if(up.includes('PENDING') || up.includes('AGUARDANDO') || up.includes('RUNNING')) cls='warn';
+      else if(up.includes('ERRO') || up.includes('ERROR') || up.includes('FAIL')) cls='err';
+      else if(up.includes('PRONTO') || up.includes('RECEBIDO')) cls='info';
+      return pill(text, cls);
+    }
+
+    function scorePill(value){
+      const n = Number(value || 0);
+      const cls = n >= 90 ? 'ok' : n >= 60 ? 'warn' : 'err';
+      return pill(Number.isFinite(n) ? n : 0, cls);
+    }
+
+    function boolPill(value){ return pill(value ? 'Sim' : 'Não', value ? 'ok' : 'muted'); }
+    function pill(text, cls){ return `<span class="pill ${cls}">${escapeHtml(text)}</span>`; }
+    function emptyRow(cols, message){ return `<tr><td colspan="${cols}" class="empty">${escapeHtml(message)}</td></tr>`; }
+
+    function escapeHtml(value){
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
+      }[char]));
+    }
+
+    function shortId(value){
+      const id = String(value || '');
+      return id.length > 12 ? id.slice(0,8) + '…' + id.slice(-4) : id;
+    }
+
+    function shortText(value){
+      const text = typeof value === 'string' ? value : JSON.stringify(value || '');
+      return text.length > 130 ? text.slice(0,130) + '…' : text;
+    }
+
+    function formatDate(value){
+      if(!value) return '';
+      try{ return new Date(value).toLocaleString('pt-BR'); }catch{ return value; }
+    }
+
+    function jsonAttr(value){ return encodeURIComponent(JSON.stringify(value ?? {}, null, 2)); }
+
+    function showJson(title, encoded){
+      let content = encoded;
+      if(typeof encoded === 'string'){
+        try{ content = decodeURIComponent(encoded); }catch{}
+      }
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalBody').textContent = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function closeModal(){ document.getElementById('modal').style.display = 'none'; }
+
+    function toast(message){
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.textContent = message;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 4200);
+    }
+
+    window.addEventListener('keydown', event => {
+      if(event.key === 'Escape') closeModal();
+    });
+
+    check();
   </script>
 </body>
 </html>"""
+
 
 
 @app.get("/panel", response_class=HTMLResponse)
@@ -548,7 +1388,6 @@ def panel_env_check():
         "panel_password_from_os": bool(os.getenv("PANEL_PASSWORD") or os.getenv("AUTODOC_PANEL_PASSWORD")),
         "panel_password_from_env_file": bool(_read_env_file_value("PANEL_PASSWORD") or _read_env_file_value("AUTODOC_PANEL_PASSWORD")),
         "panel_password_configured": bool(_panel_password()),
-        "panel_secret_configured": bool(_panel_secret()),
         "panel_secret_from_os": bool(os.getenv("PANEL_SECRET_KEY") or os.getenv("AUTODOC_PANEL_SECRET_KEY")),
         "panel_secret_from_env_file": bool(_read_env_file_value("PANEL_SECRET_KEY") or _read_env_file_value("AUTODOC_PANEL_SECRET_KEY")),
         "panel_secret_configured": bool(_panel_secret()),
