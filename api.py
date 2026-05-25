@@ -997,17 +997,26 @@ def robot_job_fail(
                 },
             )
 
-            insert_error(
-                payload.error_type,
-                payload.message,
-                file_id=file_id,
-                payload={
-                    "job_id": job_id,
-                    "details": payload.details,
-                    "job_status": job_row.get("status"),
-                },
-                status="ABERTO" if final_error else "RETRY",
-            )
+            # Não podemos deixar falha de auditoria derrubar o endpoint /fail.
+            # Algumas instalações têm CHECK constraint em autodoc_errors.status
+            # e não aceitam valores como RETRY. Por isso usamos sempre ABERTO.
+            try:
+                insert_error(
+                    payload.error_type,
+                    payload.message,
+                    file_id=file_id,
+                    payload={
+                        "job_id": job_id,
+                        "details": payload.details,
+                        "job_status": job_row.get("status"),
+                        "retryable": payload.retryable,
+                    },
+                    status="ABERTO",
+                )
+            except Exception:
+                # A falha principal do job já foi gravada em autodoc_robot_queue.last_error.
+                # Não quebrar o endpoint apenas por erro de log/auditoria.
+                pass
 
         return {
             "ok": True,
@@ -1017,15 +1026,19 @@ def robot_job_fail(
         }
 
     except Exception as e:
-        insert_error(
-            "ROBOT_FAIL_JOB_ERROR",
-            str(e),
-            file_id=file_id,
-            payload={
-                "job_id": job_id,
-                "payload": payload.model_dump(),
-            },
-        )
+        try:
+            insert_error(
+                "ROBOT_FAIL_JOB_ERROR",
+                str(e),
+                file_id=file_id,
+                payload={
+                    "job_id": job_id,
+                    "payload": payload.model_dump(),
+                },
+                status="ABERTO",
+            )
+        except Exception:
+            pass
         raise HTTPException(500, str(e))
 
 
