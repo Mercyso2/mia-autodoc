@@ -1069,7 +1069,7 @@ def autodoc_download_endpoint(
     name = payload.get("file_name") or (f or {}).get("file_name", "")
 
     try:
-        res = autodoc_download(project, path, name)
+        res = autodoc_download(project, path, name, context=f or payload)
 
         if f:
             update_row(

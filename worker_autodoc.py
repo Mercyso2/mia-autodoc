@@ -1,27 +1,14 @@
 """
-AUTODOC CENTER — Worker do Robô v0.2 — Fase 6.5
+AUTODOC CENTER — Worker do Robô v0.3 — Fase 6.5 Nível 5
 
-O que esta versão faz:
-- Continua consumindo jobs da API:
-  POST /robot/jobs/next
-  POST /robot/jobs/{job_id}/complete
-  POST /robot/jobs/{job_id}/fail
-
-Modos:
-1) DRY_RUN total:
-   --dry-run
-   Cria arquivo fake local e finaliza job.
-
-2) Download real AutoDoc + upload fake:
-   --real-download --dry-upload
-   Usa robot.downloader.download(project, autodoc_path, file_name).
-   Calcula sha256/tamanho do arquivo baixado.
-   Finaliza job com SharePoint fake/dry-run.
-   Este é o modo da Fase 6.5.
-
-3) Futuro:
-   --real-download --real-upload
-   Reservado para Fase 6.6.
+Estratégia:
+1. Consumir job PENDING da API.
+2. DRY_RUN: criar arquivo fake local.
+3. REAL_DOWNLOAD:
+   - passa o payload completo para robot.downloader.download(..., context=file_row)
+   - downloader tenta link do e-mail primeiro
+   - se não tiver link, usa busca simples por file_name
+4. Upload ainda é dry/fake nesta fase.
 """
 
 from __future__ import annotations
@@ -112,14 +99,9 @@ class AutodocWorker:
             "message": message,
             **extra,
         }
-        print(json.dumps(payload, ensure_ascii=False), flush=True)
+        print(json.dumps(payload, ensure_ascii=False, default=str), flush=True)
 
-    def request(
-        self,
-        method: str,
-        path: str,
-        payload: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+    def request(self, method: str, path: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f"{self.config.api_base_url.rstrip('/')}{path}"
 
         try:
@@ -141,17 +123,13 @@ class AutodocWorker:
 
         if response.status_code >= 400:
             raise ApiError(
-                f"HTTP {response.status_code} em {method.upper()} {path}: {json.dumps(data, ensure_ascii=False)}"
+                f"HTTP {response.status_code} em {method.upper()} {path}: {json.dumps(data, ensure_ascii=False, default=str)}"
             )
 
         return data
 
     def get_next_job(self) -> Optional[Dict[str, Any]]:
-        data = self.request(
-            "POST",
-            "/robot/jobs/next",
-            {"worker_id": self.config.worker_id},
-        )
+        data = self.request("POST", "/robot/jobs/next", {"worker_id": self.config.worker_id})
 
         if not data.get("ok") or not data.get("job"):
             return None
@@ -211,14 +189,6 @@ class AutodocWorker:
         }
 
     def real_download_file(self, file_row: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Download real do AutoDoc usando o módulo local robot.downloader.
-
-        Espera que seu projeto tenha:
-        robot/downloader.py
-        com função:
-        download(project, path, name) -> dict com local_path
-        """
         try:
             from robot.downloader import download as autodoc_download
         except Exception as exc:
@@ -235,21 +205,17 @@ class AutodocWorker:
         if not file_name:
             raise RuntimeError("file_name ausente no job/file")
 
-        if not project:
-            raise RuntimeError("project_detected ausente no job/file")
-
-        if not autodoc_path:
-            raise RuntimeError("autodoc_path ausente no job/file")
-
         self.log(
             "Iniciando download real AutoDoc",
             file_id=file_id,
             project=project,
             autodoc_path=autodoc_path,
             file_name=file_name,
+            has_download_url=bool((file_row.get("parser_payload") or {}).get("download_url") or file_row.get("download_url")),
+            has_file_page_url=bool((file_row.get("parser_payload") or {}).get("file_page_url") or file_row.get("file_page_url")),
         )
 
-        result = autodoc_download(project, autodoc_path, file_name)
+        result = autodoc_download(project, autodoc_path, file_name, context=file_row)
 
         if not isinstance(result, dict):
             raise RuntimeError(f"robot.downloader.download retornou tipo inválido: {type(result)}")
@@ -276,16 +242,11 @@ class AutodocWorker:
             "local_path": str(local_path),
             "local_sha256": sha256_file(local_path),
             "local_size_bytes": size,
-            "download_mode": "autodoc_real_download",
+            "download_mode": result.get("download_mode") or "autodoc_real_download",
             "download_result": result,
         }
 
-    def build_complete_payload(
-        self,
-        file_id: str,
-        file_row: Dict[str, Any],
-        downloaded: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    def build_complete_payload(self, file_id: str, file_row: Dict[str, Any], downloaded: Dict[str, Any]) -> Dict[str, Any]:
         file_name = file_row.get("file_name") or "arquivo_autodoc"
         sharepoint_base_path = (
             file_row.get("sharepoint_final_path")
@@ -293,8 +254,6 @@ class AutodocWorker:
             or "_AUTODOC_HOMOLOGACAO/_PENDENTES"
         )
 
-        # Fase 6.5 ainda não faz upload real.
-        # Então finalizamos usando SharePoint dry-run para validar download real + ciclo do worker.
         if self.config.dry_upload:
             return {
                 "file_id": file_id,
@@ -316,14 +275,15 @@ class AutodocWorker:
                 },
             }
 
-        raise NotImplementedError(
-            "Upload real ainda não implementado nesta fase. "
-            "Use --dry-upload até a Fase 6.6."
-        )
+        raise NotImplementedError("Upload real ainda não implementado nesta fase. Use --dry-upload até a Fase 6.6.")
 
     def process_job(self, job_data: Dict[str, Any]) -> Dict[str, Any]:
         job = job_data["job"]
         file_row = job_data.get("file") or job.get("payload") or {}
+
+        # Mescla payload do job com row atual do arquivo; a row da tabela ganha prioridade.
+        if isinstance(job.get("payload"), dict):
+            file_row = {**job["payload"], **file_row}
 
         job_id = job["id"]
         file_id = job.get("file_id") or file_row.get("id")
@@ -331,7 +291,8 @@ class AutodocWorker:
         if not file_id:
             raise RuntimeError("file_id ausente no job")
 
-        file_name = file_row.get("file_name") or (job.get("payload") or {}).get("file_name") or "arquivo_autodoc"
+        file_row = {"id": file_id, **file_row}
+        file_name = file_row.get("file_name") or "arquivo_autodoc"
 
         self.log(
             "Processando job",
@@ -344,9 +305,9 @@ class AutodocWorker:
         )
 
         if self.config.real_download:
-            downloaded = self.real_download_file({"id": file_id, **file_row})
+            downloaded = self.real_download_file(file_row)
         else:
-            downloaded = self.fake_download_file({"id": file_id, **file_row})
+            downloaded = self.fake_download_file(file_row)
 
         complete_payload = self.build_complete_payload(file_id, file_row, downloaded)
         return self.complete_job(job_id, complete_payload)
@@ -365,21 +326,11 @@ class AutodocWorker:
 
         try:
             result = self.process_job(job_data)
-            self.log(
-                "Job finalizado",
-                job_id=job_id,
-                file_id=file_id,
-                status=result.get("status"),
-            )
+            self.log("Job finalizado", job_id=job_id, file_id=file_id, status=result.get("status"))
             return True
 
         except Exception as exc:
-            self.log(
-                "Erro processando job",
-                job_id=job_id,
-                file_id=file_id,
-                error=str(exc),
-            )
+            self.log("Erro processando job", job_id=job_id, file_id=file_id, error=str(exc))
 
             try:
                 fail_result = self.fail_job(
@@ -447,9 +398,7 @@ def load_config(args: argparse.Namespace) -> WorkerConfig:
     worker_id = args.worker_id or os.getenv("AUTODOC_WORKER_ID") or f"worker-{os.getpid()}"
 
     if not api_key:
-        raise RuntimeError(
-            "AUTODOC_API_KEY ausente. Defina por variável de ambiente ou use --api-key."
-        )
+        raise RuntimeError("AUTODOC_API_KEY ausente. Defina por variável de ambiente ou use --api-key.")
 
     real_download = bool(args.real_download)
     dry_run = bool(args.dry_run)
@@ -475,7 +424,7 @@ def load_config(args: argparse.Namespace) -> WorkerConfig:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="AUTODOC CENTER Worker — Fase 6.5")
+    parser = argparse.ArgumentParser(description="AUTODOC CENTER Worker — Fase 6.5 Nível 5")
 
     parser.add_argument("--api-base-url", default=None)
     parser.add_argument("--api-key", default=None)
@@ -494,11 +443,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.set_defaults(dry_run=False, real_download=False, dry_upload=False, real_upload=False)
 
-    parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Executa apenas um ciclo e encerra.",
-    )
+    parser.add_argument("--once", action="store_true", help="Executa apenas um ciclo e encerra.")
 
     return parser
 

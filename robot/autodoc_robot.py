@@ -2,21 +2,27 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
+from urllib.parse import urlparse
 
 from core.config import settings
 
 
 class AutodocRobot:
     """
-    Robô AutoDoc — Fase 6.5
+    Robô AutoDoc — Fase 6.5 — Inteligência nível 5/100
 
-    Responsável por:
-    1. Abrir perfil persistente do Chrome/Playwright.
-    2. Garantir login.
-    3. Se cair em "Meus Produtos", entrar em "PROJETOS".
-    4. Buscar o arquivo.
-    5. Clicar no botão/link de download.
+    Estratégia:
+    1. Login/sessão AutoDoc.
+    2. Tentar link do e-mail primeiro:
+       - parser_payload.download_url
+       - parser_payload.file_page_url
+       - parser_payload.links/autodoc_urls
+    3. Se não houver link ou não baixar:
+       - busca simples pelo nome exato do arquivo
+       - tenta botão/link Download/Baixar
+    4. Se parar em seleção de conta/projeto:
+       - falha com erro claro para retry/manual, sem adivinhar conta.
     """
 
     def __init__(self) -> None:
@@ -24,11 +30,7 @@ class AutodocRobot:
         self.download_dir.mkdir(parents=True, exist_ok=True)
 
         self.keep_open_on_error = str(os.getenv("AUTODOC_KEEP_OPEN_ON_ERROR", "false")).lower() in {
-            "1",
-            "true",
-            "yes",
-            "sim",
-            "on",
+            "1", "true", "yes", "sim", "on"
         }
 
     # =========================================================
@@ -54,18 +56,22 @@ class AutodocRobot:
         hay = (text or "").lower()
         return any((v or "").strip().lower() in hay for v in values if (v or "").strip())
 
-    def _click_first_visible(self, page, selectors: Iterable[str], timeout: int = 5000) -> bool:
-        last_err = None
+    def _is_url(self, value: str) -> bool:
+        try:
+            parsed = urlparse((value or "").strip())
+            return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+        except Exception:
+            return False
 
+    def _click_first_visible(self, page, selectors: Iterable[str], timeout: int = 5000) -> bool:
         for selector in selectors:
             try:
                 loc = page.locator(selector).first
                 loc.wait_for(state="visible", timeout=timeout)
                 loc.click(timeout=timeout)
                 return True
-            except Exception as exc:
-                last_err = exc
-
+            except Exception:
+                pass
         return False
 
     def _fill_first_visible(self, page, selectors: Iterable[str], value: str, timeout: int = 5000) -> bool:
@@ -77,30 +83,66 @@ class AutodocRobot:
                 return True
             except Exception:
                 pass
-
         return False
 
     # =========================================================
-    # Login / navegação inicial
+    # Context / links
+    # =========================================================
+
+    def _candidate_urls_from_context(self, context: Dict[str, Any]) -> List[str]:
+        urls: List[str] = []
+
+        def add(value: Any) -> None:
+            if isinstance(value, str) and self._is_url(value) and value not in urls:
+                urls.append(value)
+
+        parser_payload = context.get("parser_payload") if isinstance(context.get("parser_payload"), dict) else {}
+        raw_payload = context.get("raw_payload") if isinstance(context.get("raw_payload"), dict) else {}
+        raw = context.get("raw") if isinstance(context.get("raw"), dict) else {}
+
+        for source in [context, parser_payload, raw_payload, raw]:
+            add(source.get("download_url"))
+            add(source.get("file_page_url"))
+            add(source.get("link"))
+            add(source.get("url"))
+
+            for key in ["autodoc_urls", "links"]:
+                value = source.get(key)
+                if isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, str):
+                            add(item)
+                        elif isinstance(item, dict):
+                            add(item.get("url"))
+
+        # Prioriza URLs com download/arquivo antes de páginas genéricas.
+        def score(url: str) -> int:
+            lowered = url.lower()
+            s = 0
+            if "download" in lowered or "baixar" in lowered:
+                s += 100
+            if "arquivo" in lowered or "document" in lowered or "file" in lowered:
+                s += 50
+            if "autodoc" in lowered:
+                s += 25
+            return s
+
+        urls.sort(key=score, reverse=True)
+        return urls[:10]
+
+    # =========================================================
+    # Login
     # =========================================================
 
     def _is_logged_in(self, page) -> bool:
         text = self._safe_text(page)
-
         success_tokens = []
         raw_success = getattr(settings, "autodoc_login_success_text", "") or ""
         success_tokens.extend([x.strip() for x in raw_success.split(",") if x.strip()])
-        success_tokens.extend(["Meus Produtos", "Projetos", "Sair", "Logout"])
-
+        success_tokens.extend(["Meus Produtos", "Projetos", "Sair", "Logout", "Conta: Selecione"])
         return self._contains_any(text, success_tokens)
 
     def _perform_login_if_needed(self, page) -> None:
-        """
-        Login em duas etapas:
-        - e-mail + Continuar
-        - senha + Entrar/Continuar
-        Também aceita sessão já aberta via perfil persistente.
-        """
         page.goto(self._login_url(), wait_until="load", timeout=60000)
         self._wait(page, 1500)
 
@@ -139,10 +181,8 @@ class AutodocRobot:
                 ],
                 timeout=6000,
             )
-
             if not clicked:
                 page.keyboard.press("Enter")
-
             self._wait(page, 2500)
 
         if self._is_logged_in(page):
@@ -180,7 +220,6 @@ class AutodocRobot:
         if not clicked:
             page.keyboard.press("Enter")
 
-        # Aguarda redirecionamento para produtos/projetos.
         for _ in range(30):
             self._wait(page, 1000)
             if self._is_logged_in(page):
@@ -188,53 +227,39 @@ class AutodocRobot:
 
         raise RuntimeError("Login AutoDoc não confirmado após preencher credenciais")
 
-    def _enter_projects_product_if_needed(self, page) -> None:
-        """
-        Quando o login cai na tela 'Meus Produtos', entra no card 'PROJETOS'.
-        """
+    # =========================================================
+    # Navegação fallback nível 5
+    # =========================================================
+
+    def _enter_projects_product_if_possible(self, page) -> None:
         text = self._safe_text(page)
 
-        if not self._contains_any(text, ["Meus Produtos", "GD4", "Diário de Obras", "PROJETOS"]):
+        # Se estiver na tela de produto, clica em PROJETOS.
+        if self._contains_any(text, ["Meus Produtos", "GD4", "Diário de Obras", "PROJETOS"]):
+            try:
+                card = page.locator("div, section, article").filter(has_text="PROJETOS").first
+                card.locator("text=Acessar").first.click(timeout=10000)
+                page.wait_for_load_state("load", timeout=60000)
+                self._wait(page, 3000)
+                return
+            except Exception:
+                pass
+
+            try:
+                page.get_by_text("Acessar", exact=True).nth(2).click(timeout=10000)
+                page.wait_for_load_state("load", timeout=60000)
+                self._wait(page, 3000)
+                return
+            except Exception:
+                pass
+
+        # Se já está em seleção de conta, nível 5 não adivinha a conta.
+        text = self._safe_text(page)
+        if self._contains_any(text, ["Conta: Selecione", "Selecione", "Digite para buscar"]):
             return
 
-        # Primeiro tenta clicar no link/botão Acessar dentro de um card que contém PROJETOS.
-        try:
-            card = page.locator("div, section, article").filter(has_text="PROJETOS").first
-            card.locator("text=Acessar").first.click(timeout=10000)
-            page.wait_for_load_state("load", timeout=60000)
-            self._wait(page, 3000)
-            return
-        except Exception:
-            pass
-
-        # Fallback: como normalmente há 3 "Acessar", o terceiro é Projetos.
-        try:
-            page.get_by_text("Acessar", exact=True).nth(2).click(timeout=10000)
-            page.wait_for_load_state("load", timeout=60000)
-            self._wait(page, 3000)
-            return
-        except Exception:
-            pass
-
-        # Fallback final: clicar no texto PROJETOS ou no primeiro elemento relacionado.
-        try:
-            page.get_by_text("PROJETOS", exact=False).first.click(timeout=10000)
-            page.wait_for_load_state("load", timeout=60000)
-            self._wait(page, 3000)
-        except Exception as exc:
-            raise RuntimeError("Não consegui acessar o produto PROJETOS na tela Meus Produtos") from exc
-
-    # =========================================================
-    # Busca e download
-    # =========================================================
-
-    def _search_file(self, page, project: str, autodoc_path: str, file_name: str) -> None:
-        """
-        Busca genérica. Primeiro pelo nome do arquivo.
-        Se não encontrar campo configurado, tenta seletores comuns.
-        """
+    def _search_file(self, page, file_name: str) -> None:
         search_selectors = []
-
         configured = (getattr(settings, "autodoc_search_selector", "") or "").strip()
         if configured:
             search_selectors.append(configured)
@@ -245,6 +270,7 @@ class AutodocRobot:
                 "input[placeholder*='buscar' i]",
                 "input[placeholder*='pesquisar' i]",
                 "input[placeholder*='search' i]",
+                "input[placeholder*='Digite para buscar' i]",
                 "input",
             ]
         )
@@ -252,14 +278,23 @@ class AutodocRobot:
         filled = self._fill_first_visible(page, search_selectors, file_name, timeout=15000)
 
         if not filled:
-            raise RuntimeError("Campo de busca não encontrado após entrar no AutoDoc Projetos")
+            text = self._safe_text(page)
+            if self._contains_any(text, ["Conta: Selecione", "Selecione uma conta"]):
+                raise RuntimeError(
+                    "CONTA_SELECIONE_NAO_SUPORTADO_NIVEL_5: AutoDoc pediu seleção de conta. "
+                    "Use link do e-mail ou evoluir robô para varrer contas."
+                )
+            raise RuntimeError("Campo de busca não encontrado para pesquisar arquivo no AutoDoc")
 
         page.keyboard.press("Enter")
         self._wait(page, 5000)
 
-    def _download_current_result(self, page, file_name: str) -> Path:
-        selectors = []
+    # =========================================================
+    # Download
+    # =========================================================
 
+    def _download_current_result(self, page, file_name: str) -> Optional[Path]:
+        selectors = []
         configured = (getattr(settings, "autodoc_download_selector", "") or "").strip()
         if configured:
             selectors.extend([s.strip() for s in configured.split(",") if s.strip()])
@@ -283,7 +318,6 @@ class AutodocRobot:
             try:
                 with page.expect_download(timeout=45000) as download_info:
                     page.locator(selector).first.click(timeout=15000)
-
                 download = download_info.value
                 final = self.download_dir / file_name
                 download.save_as(str(final))
@@ -291,10 +325,31 @@ class AutodocRobot:
             except Exception as exc:
                 last_err = exc
 
-        raise RuntimeError(f"Não conseguiu baixar no AutoDoc. Ajuste seletores. Último erro: {last_err}")
+        return None
 
-    def download_file(self, project: str, autodoc_path: str, file_name: str) -> dict:
+    def _try_download_from_url(self, page, url: str, file_name: str) -> Optional[Path]:
+        try:
+            with page.expect_download(timeout=20000) as download_info:
+                page.goto(url, wait_until="load", timeout=60000)
+            download = download_info.value
+            final = self.download_dir / file_name
+            download.save_as(str(final))
+            return final
+        except Exception:
+            pass
+
+        # Se a URL abriu página do arquivo, tenta botão Download.
+        try:
+            page.goto(url, wait_until="load", timeout=60000)
+            self._wait(page, 3000)
+            return self._download_current_result(page, file_name)
+        except Exception:
+            return None
+
+    def download_file(self, project: str, autodoc_path: str, file_name: str, context: Optional[Dict[str, Any]] = None) -> dict:
         from playwright.sync_api import sync_playwright
+
+        context = context or {}
 
         with sync_playwright() as p:
             ctx = p.chromium.launch_persistent_context(
@@ -302,25 +357,47 @@ class AutodocRobot:
                 headless=settings.autodoc_headless,
                 accept_downloads=True,
             )
-
             page = ctx.new_page()
 
             try:
                 self._perform_login_if_needed(page)
-                self._enter_projects_product_if_needed(page)
 
+                # Cenário 1: link do e-mail.
+                candidate_urls = self._candidate_urls_from_context(context)
+                for url in candidate_urls:
+                    final = self._try_download_from_url(page, url, file_name)
+                    if final and final.exists() and final.stat().st_size > 0:
+                        ctx.close()
+                        return {
+                            "ok": True,
+                            "local_path": str(final),
+                            "status": "BAIXADO",
+                            "download_mode": "email_link",
+                            "source_url": url,
+                            "project": project,
+                            "autodoc_path": autodoc_path,
+                            "file_name": file_name,
+                        }
+
+                # Cenário 2: busca simples pelo nome.
+                self._enter_projects_product_if_possible(page)
                 page.wait_for_load_state("load", timeout=60000)
                 self._wait(page, 2000)
 
-                self._search_file(page, project, autodoc_path, file_name)
+                self._search_file(page, file_name)
                 final = self._download_current_result(page, file_name)
 
-                ctx.close()
+                if not final:
+                    raise RuntimeError(
+                        "DOWNLOAD_NAO_ENCONTRADO_NIVEL_5: nenhum link direto funcionou e não achei botão Download/Baixar após busca simples."
+                    )
 
+                ctx.close()
                 return {
                     "ok": True,
                     "local_path": str(final),
                     "status": "BAIXADO",
+                    "download_mode": "manual_search_file_name",
                     "project": project,
                     "autodoc_path": autodoc_path,
                     "file_name": file_name,
