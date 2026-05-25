@@ -1,16 +1,27 @@
 """
-AUTODOC CENTER — Worker do Robô v0.1 — Fase 6.4
+AUTODOC CENTER — Worker do Robô v0.2 — Fase 6.5
 
-Objetivo desta versão:
-- Consumir jobs PENDING da API.
-- Travar job via POST /robot/jobs/next.
-- Simular processamento em modo DRY_RUN.
-- Finalizar com POST /robot/jobs/{job_id}/complete.
-- Em caso de erro, chamar POST /robot/jobs/{job_id}/fail.
+O que esta versão faz:
+- Continua consumindo jobs da API:
+  POST /robot/jobs/next
+  POST /robot/jobs/{job_id}/complete
+  POST /robot/jobs/{job_id}/fail
 
-Próximas fases:
-- 6.5: plugar download real do AutoDoc.
-- 6.6: plugar upload real no SharePoint.
+Modos:
+1) DRY_RUN total:
+   --dry-run
+   Cria arquivo fake local e finaliza job.
+
+2) Download real AutoDoc + upload fake:
+   --real-download --dry-upload
+   Usa robot.downloader.download(project, autodoc_path, file_name).
+   Calcula sha256/tamanho do arquivo baixado.
+   Finaliza job com SharePoint fake/dry-run.
+   Este é o modo da Fase 6.5.
+
+3) Futuro:
+   --real-download --real-upload
+   Reservado para Fase 6.6.
 """
 
 from __future__ import annotations
@@ -54,6 +65,16 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+
+    return h.hexdigest()
+
+
 @dataclass
 class WorkerConfig:
     api_base_url: str
@@ -61,6 +82,8 @@ class WorkerConfig:
     worker_id: str
     poll_interval_seconds: int
     dry_run: bool
+    real_download: bool
+    dry_upload: bool
     downloads_dir: Path
     max_idle_cycles: int
     request_timeout_seconds: int
@@ -162,11 +185,6 @@ class AutodocWorker:
         )
 
     def fake_download_file(self, file_row: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        DRY_RUN:
-        Cria um arquivo fake local para validar o ciclo completo do worker
-        sem abrir AutoDoc nem subir SharePoint.
-        """
         file_name = file_row.get("file_name") or "autodoc_fake_file.bin"
         safe_name = file_name.replace("/", "_").replace("\\", "_")
 
@@ -185,13 +203,123 @@ class AutodocWorker:
 
         local_path.write_bytes(content)
 
-        sha256 = hashlib.sha256(content).hexdigest()
+        return {
+            "local_path": str(local_path),
+            "local_sha256": hashlib.sha256(content).hexdigest(),
+            "local_size_bytes": len(content),
+            "download_mode": "dry_run_fake_file",
+        }
+
+    def real_download_file(self, file_row: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Download real do AutoDoc usando o módulo local robot.downloader.
+
+        Espera que seu projeto tenha:
+        robot/downloader.py
+        com função:
+        download(project, path, name) -> dict com local_path
+        """
+        try:
+            from robot.downloader import download as autodoc_download
+        except Exception as exc:
+            raise RuntimeError(
+                "Não consegui importar robot.downloader.download. "
+                "Confirme se está rodando na raiz do projeto e se a pasta robot existe."
+            ) from exc
+
+        file_id = file_row.get("id")
+        file_name = file_row.get("file_name") or ""
+        project = file_row.get("project_detected") or ""
+        autodoc_path = file_row.get("autodoc_path") or ""
+
+        if not file_name:
+            raise RuntimeError("file_name ausente no job/file")
+
+        if not project:
+            raise RuntimeError("project_detected ausente no job/file")
+
+        if not autodoc_path:
+            raise RuntimeError("autodoc_path ausente no job/file")
+
+        self.log(
+            "Iniciando download real AutoDoc",
+            file_id=file_id,
+            project=project,
+            autodoc_path=autodoc_path,
+            file_name=file_name,
+        )
+
+        result = autodoc_download(project, autodoc_path, file_name)
+
+        if not isinstance(result, dict):
+            raise RuntimeError(f"robot.downloader.download retornou tipo inválido: {type(result)}")
+
+        local_path_raw = result.get("local_path") or result.get("path")
+
+        if not local_path_raw:
+            raise RuntimeError(f"Download AutoDoc não retornou local_path. Retorno: {result}")
+
+        local_path = Path(local_path_raw)
+
+        if not local_path.exists():
+            raise RuntimeError(f"Arquivo baixado não encontrado em local_path: {local_path}")
+
+        if not local_path.is_file():
+            raise RuntimeError(f"local_path não é arquivo: {local_path}")
+
+        size = local_path.stat().st_size
+
+        if size <= 0:
+            raise RuntimeError(f"Arquivo baixado está vazio: {local_path}")
 
         return {
             "local_path": str(local_path),
-            "local_sha256": sha256,
-            "local_size_bytes": len(content),
+            "local_sha256": sha256_file(local_path),
+            "local_size_bytes": size,
+            "download_mode": "autodoc_real_download",
+            "download_result": result,
         }
+
+    def build_complete_payload(
+        self,
+        file_id: str,
+        file_row: Dict[str, Any],
+        downloaded: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        file_name = file_row.get("file_name") or "arquivo_autodoc"
+        sharepoint_base_path = (
+            file_row.get("sharepoint_final_path")
+            or file_row.get("sharepoint_suggested_path")
+            or "_AUTODOC_HOMOLOGACAO/_PENDENTES"
+        )
+
+        # Fase 6.5 ainda não faz upload real.
+        # Então finalizamos usando SharePoint dry-run para validar download real + ciclo do worker.
+        if self.config.dry_upload:
+            return {
+                "file_id": file_id,
+                "local_path": downloaded["local_path"],
+                "local_sha256": downloaded["local_sha256"],
+                "local_size_bytes": downloaded["local_size_bytes"],
+                "sharepoint_item_id": f"dry_upload_after_download_{file_id}",
+                "sharepoint_web_url": f"https://dry-run.local/sharepoint/{file_name}",
+                "sharepoint_final_path": f"{sharepoint_base_path.rstrip('/')}/{file_name}",
+                "saved_environment": os.getenv("APP_ENV", "HML"),
+                "result": {
+                    "dry_run": self.config.dry_run,
+                    "real_download": self.config.real_download,
+                    "dry_upload": self.config.dry_upload,
+                    "download_mode": downloaded.get("download_mode"),
+                    "worker_id": self.config.worker_id,
+                    "processed_at": now_iso(),
+                    "download_result": downloaded.get("download_result"),
+                },
+            }
+
+        raise NotImplementedError(
+            "Upload real ainda não implementado nesta fase. "
+            "Use --dry-upload até a Fase 6.6."
+        )
 
     def process_job(self, job_data: Dict[str, Any]) -> Dict[str, Any]:
         job = job_data["job"]
@@ -211,43 +339,17 @@ class AutodocWorker:
             file_id=file_id,
             file_name=file_name,
             dry_run=self.config.dry_run,
+            real_download=self.config.real_download,
+            dry_upload=self.config.dry_upload,
         )
 
-        if self.config.dry_run:
+        if self.config.real_download:
+            downloaded = self.real_download_file({"id": file_id, **file_row})
+        else:
             downloaded = self.fake_download_file({"id": file_id, **file_row})
 
-            sharepoint_final_path = (
-                file_row.get("sharepoint_final_path")
-                or file_row.get("sharepoint_suggested_path")
-                or "_AUTODOC_HOMOLOGACAO/_PENDENTES"
-            )
-
-            result_payload = {
-                "file_id": file_id,
-                "local_path": downloaded["local_path"],
-                "local_sha256": downloaded["local_sha256"],
-                "local_size_bytes": downloaded["local_size_bytes"],
-                "sharepoint_item_id": f"dry_run_item_{file_id}",
-                "sharepoint_web_url": f"https://dry-run.local/sharepoint/{file_name}",
-                "sharepoint_final_path": f"{sharepoint_final_path.rstrip('/')}/{file_name}",
-                "saved_environment": os.getenv("APP_ENV", "HML"),
-                "result": {
-                    "dry_run": True,
-                    "worker_id": self.config.worker_id,
-                    "processed_at": now_iso(),
-                },
-            }
-
-            return self.complete_job(job_id, result_payload)
-
-        # Próxima fase:
-        # Aqui vamos plugar:
-        # 1) download real do AutoDoc
-        # 2) upload real no SharePoint
-        raise NotImplementedError(
-            "WORKER_DRY_RUN=false ainda não implementado nesta fase. "
-            "Use WORKER_DRY_RUN=true até a Fase 6.5/6.6."
-        )
+        complete_payload = self.build_complete_payload(file_id, file_row, downloaded)
+        return self.complete_job(job_id, complete_payload)
 
     def run_once(self) -> bool:
         job_data = self.get_next_job()
@@ -288,6 +390,8 @@ class AutodocWorker:
                     details={
                         "worker_id": self.config.worker_id,
                         "dry_run": self.config.dry_run,
+                        "real_download": self.config.real_download,
+                        "dry_upload": self.config.dry_upload,
                     },
                     retryable=True,
                     retry_delay_minutes=2,
@@ -316,6 +420,8 @@ class AutodocWorker:
             "Worker iniciado",
             api_base_url=self.config.api_base_url,
             dry_run=self.config.dry_run,
+            real_download=self.config.real_download,
+            dry_upload=self.config.dry_upload,
             poll_interval_seconds=self.config.poll_interval_seconds,
             max_idle_cycles=self.config.max_idle_cycles,
         )
@@ -345,12 +451,23 @@ def load_config(args: argparse.Namespace) -> WorkerConfig:
             "AUTODOC_API_KEY ausente. Defina por variável de ambiente ou use --api-key."
         )
 
+    real_download = bool(args.real_download)
+    dry_run = bool(args.dry_run)
+    dry_upload = bool(args.dry_upload)
+
+    if real_download:
+        dry_run = False
+        if not args.real_upload:
+            dry_upload = True
+
     return WorkerConfig(
         api_base_url=api_base_url,
         api_key=api_key,
         worker_id=worker_id,
         poll_interval_seconds=args.poll_interval or env_int("WORKER_POLL_INTERVAL_SECONDS", 10),
-        dry_run=args.dry_run if args.dry_run is not None else env_bool("WORKER_DRY_RUN", True),
+        dry_run=dry_run,
+        real_download=real_download,
+        dry_upload=dry_upload,
         downloads_dir=Path(args.downloads_dir or os.getenv("WORKER_DOWNLOADS_DIR") or "storage/worker_downloads"),
         max_idle_cycles=args.max_idle_cycles if args.max_idle_cycles is not None else env_int("WORKER_MAX_IDLE_CYCLES", 1),
         request_timeout_seconds=args.timeout or env_int("WORKER_REQUEST_TIMEOUT_SECONDS", 60),
@@ -358,7 +475,7 @@ def load_config(args: argparse.Namespace) -> WorkerConfig:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="AUTODOC CENTER Worker — Fase 6.4")
+    parser = argparse.ArgumentParser(description="AUTODOC CENTER Worker — Fase 6.5")
 
     parser.add_argument("--api-base-url", default=None)
     parser.add_argument("--api-key", default=None)
@@ -368,10 +485,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=int, default=None)
     parser.add_argument("--max-idle-cycles", type=int, default=None)
 
-    dry_group = parser.add_mutually_exclusive_group()
-    dry_group.add_argument("--dry-run", dest="dry_run", action="store_true")
-    dry_group.add_argument("--real", dest="dry_run", action="store_false")
-    parser.set_defaults(dry_run=None)
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument("--dry-run", dest="dry_run", action="store_true")
+    mode_group.add_argument("--real-download", dest="real_download", action="store_true")
+
+    parser.add_argument("--dry-upload", action="store_true")
+    parser.add_argument("--real-upload", action="store_true")
+
+    parser.set_defaults(dry_run=False, real_download=False, dry_upload=False, real_upload=False)
 
     parser.add_argument(
         "--once",
