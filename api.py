@@ -1,11 +1,15 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import shutil
 import hashlib
 import json
+import time
+import hmac
+import base64
 
 from core.config import settings
 from core.database import *
@@ -230,6 +234,431 @@ def _status_for_file(
         return _safe_get_status("FILE_AGUARDANDO_DOWNLOAD", "AGUARDANDO_DOWNLOAD")
 
     return _safe_get_status("FILE_AGUARDANDO_APROVACAO", "AGUARDANDO_APROVACAO")
+
+
+
+# =========================================================
+# Painel seguro / Cliente final
+# =========================================================
+
+PANEL_COOKIE_NAME = "autodoc_panel_session"
+PANEL_SESSION_TTL_SECONDS = 60 * 60 * 8
+
+
+def _panel_secret() -> str:
+    """
+    Segredo usado para assinar a sessão do painel.
+    Configure no EasyPanel:
+    PANEL_SECRET_KEY=uma-string-grande-aleatoria
+    """
+    return (
+        getattr(settings, "panel_secret_key", None)
+        or getattr(settings, "autodoc_api_key", None)
+        or getattr(settings, "api_key", None)
+        or "CHANGE_ME_PANEL_SECRET"
+    )
+
+
+def _panel_password() -> str:
+    """
+    Senha do painel.
+    Configure no EasyPanel:
+    PANEL_PASSWORD=sua-senha-forte
+    """
+    return (
+        getattr(settings, "panel_password", None)
+        or getattr(settings, "autodoc_panel_password", None)
+        or ""
+    )
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("utf-8").rstrip("=")
+
+
+def _b64url_decode(data: str) -> bytes:
+    pad = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode((data + pad).encode("utf-8"))
+
+
+def _sign_panel_payload(payload: str) -> str:
+    digest = hmac.new(
+        _panel_secret().encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return _b64url(digest)
+
+
+def _create_panel_token(username: str = "cliente") -> str:
+    exp = int(time.time()) + PANEL_SESSION_TTL_SECONDS
+    payload = json.dumps(
+        {
+            "sub": username,
+            "exp": exp,
+            "scope": "panel",
+        },
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    payload_b64 = _b64url(payload.encode("utf-8"))
+    sig = _sign_panel_payload(payload_b64)
+    return f"{payload_b64}.{sig}"
+
+
+def _verify_panel_token(token: str) -> Dict[str, Any]:
+    if not token or "." not in token:
+        raise HTTPException(401, "Sessão ausente")
+
+    payload_b64, sig = token.rsplit(".", 1)
+    expected = _sign_panel_payload(payload_b64)
+
+    if not hmac.compare_digest(sig, expected):
+        raise HTTPException(401, "Sessão inválida")
+
+    try:
+        payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
+    except Exception:
+        raise HTTPException(401, "Sessão inválida")
+
+    if int(payload.get("exp") or 0) < int(time.time()):
+        raise HTTPException(401, "Sessão expirada")
+
+    if payload.get("scope") != "panel":
+        raise HTTPException(401, "Escopo inválido")
+
+    return payload
+
+
+def require_panel_session(request: Request) -> Dict[str, Any]:
+    token = request.cookies.get(PANEL_COOKIE_NAME)
+    return _verify_panel_token(token or "")
+
+
+class PanelLogin(BaseModel):
+    password: str
+    username: str = "cliente"
+
+
+def _panel_html() -> str:
+    return r"""<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AUTODOC CENTER — Painel Seguro</title>
+  <style>
+    :root{
+      --bg:#0b1020;--panel:#121a2e;--line:#263653;--text:#eaf0ff;--muted:#91a0bd;
+      --brand:#A9798B;--ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--violet:#a78bfa;
+      --shadow:0 18px 50px rgba(0,0,0,.35);--radius:18px;
+    }
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0%,rgba(169,121,139,.22),transparent 35%),radial-gradient(circle at 80% 10%,rgba(167,139,250,.16),transparent 30%),var(--bg);color:var(--text);font-family:Inter,Segoe UI,Roboto,Arial,sans-serif}
+    .login{min-height:100vh;display:grid;place-items:center;padding:24px}.login-card{width:min(430px,100%);background:rgba(18,26,46,.88);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);padding:28px}.logo{width:52px;height:52px;border-radius:17px;background:linear-gradient(135deg,var(--brand),var(--violet));display:grid;place-items:center;font-weight:900;font-size:24px;margin-bottom:18px}h1{margin:0;font-size:28px;letter-spacing:-.04em}p{color:var(--muted);line-height:1.5}.field{margin:18px 0}label{display:block;color:var(--muted);font-size:13px;margin-bottom:7px}input,select{width:100%;background:#0b1222;border:1px solid var(--line);border-radius:13px;color:var(--text);padding:12px;outline:none}.btn{border:0;border-radius:13px;padding:11px 14px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--brand),#8F6475);cursor:pointer}.btn.secondary{background:#1f2d47;border:1px solid var(--line)}.btn.danger{background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.35)}.btn.ok{background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.35)}.btn:disabled{opacity:.5;cursor:not-allowed}
+    .app{display:none;grid-template-columns:270px 1fr;min-height:100vh}aside{height:100vh;position:sticky;top:0;padding:22px 18px;background:rgba(12,18,34,.82);backdrop-filter:blur(14px);border-right:1px solid var(--line)}.brand{display:flex;gap:12px;align-items:center;margin-bottom:22px}.brand .logo{width:42px;height:42px;margin:0;font-size:18px}.brand b{display:block}.brand span{font-size:12px;color:var(--muted)}nav{display:flex;flex-direction:column;gap:8px}nav button{background:transparent;color:var(--muted);border:1px solid transparent;border-radius:13px;padding:12px;text-align:left;cursor:pointer}nav button.active,nav button:hover{background:rgba(255,255,255,.055);color:white;border-color:rgba(169,121,139,.28)}
+    main{padding:26px}.topbar{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:22px}.topbar h2{margin:0;font-size:28px;letter-spacing:-.04em}.actions{display:flex;gap:10px;flex-wrap:wrap}.grid{display:grid;gap:16px}.cards{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:18px}.card,.panel{background:rgba(18,26,46,.86);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.card{padding:18px}.card .label{color:var(--muted);font-size:13px}.num{font-size:30px;font-weight:900;margin-top:8px}.panel{overflow:hidden;margin-bottom:18px}.head{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 18px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.03)}.head h3{margin:0;font-size:16px}.filters{display:flex;gap:10px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line)}.filters input,.filters select{width:auto;min-width:190px}
+    .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:12px 14px;border-bottom:1px solid rgba(38,54,83,.65);white-space:nowrap;vertical-align:top}th{text-align:left;color:#b9c6df;background:rgba(255,255,255,.025)}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}.pill{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:800;border:1px solid var(--line);background:rgba(255,255,255,.045)}.pill.ok{color:#86efac;border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.12)}.pill.warn{color:#fcd34d;border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.12)}.pill.err{color:#fca5a5;border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.12)}.pill.info{color:#93c5fd;border-color:rgba(59,130,246,.35);background:rgba(59,130,246,.12)}.pill.muted{color:#cbd5e1;border-color:rgba(148,163,184,.25);background:rgba(148,163,184,.08)}.hidden{display:none!important}.empty{padding:34px;text-align:center;color:var(--muted)}
+    pre{background:#080d19;border:1px solid var(--line);color:#dbeafe;padding:14px;border-radius:14px;max-height:460px;overflow:auto;white-space:pre-wrap;word-break:break-word}.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.58);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}.modal{width:min(960px,96vw);max-height:88vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}.modal .body{padding:18px}.toast{position:fixed;right:20px;bottom:20px;background:#101827;border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow);z-index:60;max-width:440px}
+    @media(max-width:1100px){.app{grid-template-columns:1fr}aside{height:auto;position:relative}.cards{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){main{padding:16px}.cards{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <section id="login" class="login">
+    <div class="login-card">
+      <div class="logo">A</div>
+      <h1>AUTODOC CENTER</h1>
+      <p>Painel seguro do cliente. A API Key fica no servidor e nunca aparece no navegador.</p>
+      <div class="field"><label>Senha do painel</label><input id="password" type="password" placeholder="Digite a senha" onkeydown="if(event.key==='Enter') login()"></div>
+      <button class="btn" style="width:100%" onclick="login()">Entrar</button>
+      <p id="loginError" style="color:#fca5a5"></p>
+    </div>
+  </section>
+
+  <section id="app" class="app">
+    <aside>
+      <div class="brand"><div class="logo">A</div><div><b>AUTODOC CENTER</b><span>Painel Cliente</span></div></div>
+      <nav>
+        <button class="active" data-view="dashboard">📊 Dashboard</button>
+        <button data-view="files">📁 Arquivos</button>
+        <button data-view="emails">✉️ E-mails</button>
+        <button data-view="robot">🤖 Fila do Robô</button>
+        <button data-view="sharepoint">🟦 SharePoint</button>
+        <button data-view="errors">⚠️ Erros</button>
+        <button data-view="settings">⚙️ Status</button>
+      </nav>
+      <div style="margin-top:18px"><button class="btn danger" style="width:100%" onclick="logout()">Sair</button></div>
+    </aside>
+    <main>
+      <div class="topbar"><div><h2 id="title">Dashboard</h2><p id="subtitle">Visão geral da operação.</p></div><div class="actions"><button class="btn secondary" onclick="refresh()">Atualizar</button></div></div>
+
+      <section id="view-dashboard" class="view">
+        <div class="grid cards">
+          <div class="card"><div class="label">Arquivos</div><div class="num" id="kFiles">--</div></div>
+          <div class="card"><div class="label">Aguardando download</div><div class="num" id="kPending">--</div></div>
+          <div class="card"><div class="label">Salvos</div><div class="num" id="kSaved">--</div></div>
+          <div class="card"><div class="label">Erros</div><div class="num" id="kErrors">--</div></div>
+        </div>
+        <div class="panel"><div class="head"><h3>Health</h3><button class="btn secondary" onclick="loadHealth()">Testar</button></div><div class="table-wrap"><table><thead><tr><th>Serviço</th><th>Status</th><th>Detalhes</th></tr></thead><tbody id="healthRows"></tbody></table></div></div>
+        <div class="panel"><div class="head"><h3>Arquivos recentes</h3></div><div class="table-wrap"><table><thead><tr><th>Arquivo</th><th>Projeto</th><th>Disciplina</th><th>Status</th><th>Score</th><th>Destino</th></tr></thead><tbody id="recentFiles"></tbody></table></div></div>
+      </section>
+
+      <section id="view-files" class="view hidden">
+        <div class="panel"><div class="head"><h3>Arquivos</h3><button class="btn secondary" onclick="loadFiles()">Atualizar</button></div><div class="filters"><input id="fileSearch" placeholder="Buscar..." oninput="renderFiles()"><select id="fileStatus" onchange="renderFiles()"><option value="">Todos status</option></select></div><div class="table-wrap"><table><thead><tr><th>Arquivo</th><th>Projeto</th><th>Disciplina</th><th>AutoDoc</th><th>SharePoint</th><th>Status</th><th>Score</th><th>Ações</th></tr></thead><tbody id="filesRows"></tbody></table></div></div>
+      </section>
+
+      <section id="view-emails" class="view hidden">
+        <div class="panel"><div class="head"><h3>E-mails</h3><button class="btn secondary" onclick="loadEmails()">Atualizar</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Assunto</th><th>Remetente</th><th>Status</th><th>Tipo</th><th>Ações</th></tr></thead><tbody id="emailsRows"></tbody></table></div></div>
+      </section>
+
+      <section id="view-robot" class="view hidden">
+        <div class="panel"><div class="head"><h3>Fila do Robô</h3><div class="actions"><button class="btn secondary" onclick="loadJobs()">Atualizar</button><button class="btn" onclick="claimNext()">Pegar próximo</button></div></div><div class="table-wrap"><table><thead><tr><th>Job</th><th>Arquivo</th><th>Status</th><th>Attempts</th><th>Worker</th><th>Próxima</th><th>Erro</th><th>Ações</th></tr></thead><tbody id="jobsRows"></tbody></table></div></div>
+      </section>
+
+      <section id="view-sharepoint" class="view hidden">
+        <div class="panel"><div class="head"><h3>SharePoint</h3><button class="btn secondary" onclick="loadSites()">Atualizar</button></div><div class="table-wrap"><table><thead><tr><th>Projeto</th><th>URL</th><th>Library</th><th>Ativo</th><th>HML</th><th>Map</th><th>Prod</th><th>Ações</th></tr></thead><tbody id="sitesRows"></tbody></table></div></div>
+      </section>
+
+      <section id="view-errors" class="view hidden">
+        <div class="panel"><div class="head"><h3>Erros</h3><button class="btn secondary" onclick="loadErrors()">Atualizar</button></div><div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Mensagem</th><th>Arquivo</th><th>Status</th><th>Data</th><th>Ações</th></tr></thead><tbody id="errorsRows"></tbody></table></div></div>
+      </section>
+
+      <section id="view-settings" class="view hidden">
+        <div class="panel"><div class="head"><h3>Status / Configuração</h3><button class="btn secondary" onclick="loadSettings()">Atualizar</button></div><div style="padding:18px"><pre id="settingsJson">{}</pre></div></div>
+      </section>
+    </main>
+  </section>
+
+  <div class="modal-backdrop" id="modal"><div class="modal"><div class="head"><h3 id="modalTitle">Detalhes</h3><button class="btn secondary" onclick="closeModal()">Fechar</button></div><div class="body"><pre id="modalBody"></pre></div></div></div>
+
+  <script>
+    const state={files:[],emails:[],jobs:[],sites:[],errors:[]};
+    const meta={dashboard:['Dashboard','Visão geral da operação.'],files:['Arquivos','Controle de arquivos e destinos.'],emails:['E-mails','E-mails processados.'],robot:['Fila do Robô','Jobs de download/upload.'],sharepoint:['SharePoint','Sites e HML.'],errors:['Erros','Falhas e auditoria.'],settings:['Status','Ambiente e integrações.']};
+
+    async function call(path,opt={}){const r=await fetch(path,{credentials:'include',headers:{'Content-Type':'application/json'},...opt});const t=await r.text();let d;try{d=t?JSON.parse(t):{}}catch{d={raw:t}};if(!r.ok)throw new Error(d.detail||JSON.stringify(d));return d}
+    async function login(){try{await call('/panel/login',{method:'POST',body:JSON.stringify({password:document.getElementById('password').value})});document.getElementById('login').style.display='none';document.getElementById('app').style.display='grid';refresh()}catch(e){document.getElementById('loginError').textContent=e.message}}
+    async function logout(){await call('/panel/logout',{method:'POST'}).catch(()=>{});location.reload()}
+    async function check(){try{await call('/panel/api/summary');document.getElementById('login').style.display='none';document.getElementById('app').style.display='grid';refresh()}catch{}}
+    function nav(v){document.querySelectorAll('.view').forEach(x=>x.classList.add('hidden'));document.getElementById('view-'+v).classList.remove('hidden');document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));document.getElementById('title').textContent=meta[v][0];document.getElementById('subtitle').textContent=meta[v][1];if(v==='files')loadFiles();if(v==='emails')loadEmails();if(v==='robot')loadJobs();if(v==='sharepoint')loadSites();if(v==='errors')loadErrors();if(v==='settings')loadSettings()}
+    document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>nav(b.dataset.view));
+    async function refresh(){await Promise.allSettled([loadSummary(),loadHealth(),loadFiles(),loadSites()])}
+    async function loadSummary(){const s=await call('/panel/api/summary');document.getElementById('kFiles').textContent=s.files_total??0;document.getElementById('kPending').textContent=s.files_waiting_download??0;document.getElementById('kSaved').textContent=s.files_saved??0;document.getElementById('kErrors').textContent=s.errors_total??0}
+    async function loadHealth(){const h=await call('/panel/api/health');document.getElementById('healthRows').innerHTML=Object.entries(h).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${pill(v.ok!==false?'OK':'ERRO',v.ok!==false?'ok':'err')}</td><td><button class="btn secondary" onclick='show("${k}",${attr(v)})'>Ver</button></td></tr>`).join('')}
+    async function loadFiles(){const d=await call('/panel/api/files?limit=500');state.files=d.files||[];fillStatus();renderFiles();renderRecent()}
+    function fillStatus(){const s=document.getElementById('fileStatus'),cur=s.value;const list=[...new Set(state.files.map(f=>f.status).filter(Boolean))].sort();s.innerHTML='<option value="">Todos status</option>'+list.map(x=>`<option>${esc(x)}</option>`).join('');s.value=cur}
+    function renderFiles(){const q=(document.getElementById('fileSearch')?.value||'').toLowerCase(),st=(document.getElementById('fileStatus')?.value||'');let arr=state.files.filter(f=>(!st||f.status===st)&&(!q||[f.file_name,f.project_detected,f.discipline_detected,f.autodoc_path,f.sharepoint_suggested_path,f.status].join(' ').toLowerCase().includes(q)));document.getElementById('filesRows').innerHTML=arr.map(f=>`<tr><td><b>${esc(f.file_name)}</b><br><span class=mono>${short(f.id)}</span></td><td>${esc(f.project_detected)}</td><td>${esc(f.discipline_detected)}</td><td>${esc(f.autodoc_path)}</td><td>${esc(f.sharepoint_final_path||f.sharepoint_suggested_path)}</td><td>${status(f.status)}</td><td>${score(f.confidence_score)}</td><td><div class=actions><button class="btn secondary" onclick='show("Arquivo",${attr(f)})'>Ver</button><button class="btn ok" onclick="act('/panel/api/files/${f.id}/approve')">Aprovar</button><button class="btn" onclick="act('/panel/api/files/${f.id}/queue')">Fila</button><button class="btn danger" onclick="act('/panel/api/files/${f.id}/ignore')">Ignorar</button></div></td></tr>`).join('')||empty(8,'Nenhum arquivo.')}
+    function renderRecent(){document.getElementById('recentFiles').innerHTML=state.files.slice(0,8).map(f=>`<tr><td>${esc(f.file_name)}</td><td>${esc(f.project_detected)}</td><td>${esc(f.discipline_detected)}</td><td>${status(f.status)}</td><td>${score(f.confidence_score)}</td><td>${esc(f.sharepoint_suggested_path)}</td></tr>`).join('')||empty(6,'Nenhum arquivo.')}
+    async function loadEmails(){const d=await call('/panel/api/emails?limit=300');state.emails=d.emails||[];document.getElementById('emailsRows').innerHTML=state.emails.map(e=>`<tr><td>${date(e.created_at||e.received_at)}</td><td>${esc(e.subject)}</td><td>${esc(e.sender)}</td><td>${status(e.status)}</td><td>${esc(e.email_type)}</td><td><button class="btn secondary" onclick='show("E-mail",${attr(e)})'>Ver</button></td></tr>`).join('')||empty(6,'Nenhum e-mail.')}
+    async function loadJobs(){const d=await call('/panel/api/robot/jobs?limit=300');state.jobs=d.jobs||[];document.getElementById('jobsRows').innerHTML=state.jobs.map(j=>`<tr><td><span class=mono>${short(j.id)}</span></td><td><span class=mono>${short(j.file_id)}</span></td><td>${status(j.status)}</td><td>${j.attempts||0}/${j.max_attempts||3}</td><td>${esc(j.locked_by)}</td><td>${date(j.next_attempt_at)}</td><td>${esc(shortText(j.last_error))}</td><td><button class="btn secondary" onclick='show("Job",${attr(j)})'>Ver</button></td></tr>`).join('')||empty(8,'Nenhum job.')}
+    async function claimNext(){const d=await call('/panel/api/robot/jobs/next',{method:'POST'});show('Próximo job',d);loadJobs()}
+    async function loadSites(){const d=await call('/panel/api/sites');state.sites=d.sites||[];document.getElementById('sitesRows').innerHTML=state.sites.map(s=>`<tr><td><b>${esc(s.project_name||s.project_normalized)}</b><br><span class=mono>${short(s.id)}</span></td><td>${esc(s.site_url)}</td><td>${esc(s.library_name)}</td><td>${bool(s.active)}</td><td>${bool(s.hml_ready)}</td><td>${bool(s.folder_map_ready)}</td><td>${bool(s.prod_ready)}</td><td><button class="btn secondary" onclick='show("Site",${attr(s)})'>Ver</button></td></tr>`).join('')||empty(8,'Nenhum site.')}
+    async function loadErrors(){const d=await call('/panel/api/errors?limit=300');state.errors=d.errors||[];document.getElementById('errorsRows').innerHTML=state.errors.map(e=>`<tr><td>${esc(e.error_type)}</td><td>${esc(e.message)}</td><td><span class=mono>${short(e.file_id)}</span></td><td>${status(e.status)}</td><td>${date(e.created_at)}</td><td><button class="btn secondary" onclick='show("Erro",${attr(e)})'>Ver</button></td></tr>`).join('')||empty(6,'Nenhum erro.')}
+    async function loadSettings(){const d=await call('/panel/api/settings');document.getElementById('settingsJson').textContent=JSON.stringify(d,null,2)}
+    async function act(path){try{const d=await call(path,{method:'POST'});show('Resultado',d);loadFiles()}catch(e){toast(e.message)}}
+    function status(s){s=s||'—';let u=String(s).toUpperCase(),c='muted';if(u.includes('DONE')||u.includes('OK')||u.includes('SALVO'))c='ok';else if(u.includes('PENDING')||u.includes('AGUARDANDO')||u.includes('RUNNING'))c='warn';else if(u.includes('ERRO')||u.includes('ERROR')||u.includes('FAIL'))c='err';else if(u.includes('PRONTO')||u.includes('RECEBIDO'))c='info';return pill(s,c)}
+    function score(v){let n=Number(v||0),c=n>=90?'ok':n>=60?'warn':'err';return pill(isFinite(n)?n:0,c)}function bool(v){return pill(v?'Sim':'Não',v?'ok':'muted')}function pill(t,c){return `<span class="pill ${c}">${esc(t)}</span>`}function empty(c,m){return `<tr><td colspan="${c}" class=empty>${esc(m)}</td></tr>`}function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}function short(id){id=String(id||'');return id.length>12?id.slice(0,8)+'…'+id.slice(-4):id}function shortText(v){let s=typeof v==='string'?v:JSON.stringify(v||'');return s.length>100?s.slice(0,100)+'…':s}function date(v){if(!v)return'';try{return new Date(v).toLocaleString('pt-BR')}catch{return v}}function attr(o){return encodeURIComponent(JSON.stringify(o??{},null,2))}
+    function show(t,v){let text=typeof v==='string'?decodeURIComponent(v):JSON.stringify(v,null,2);document.getElementById('modalTitle').textContent=t;document.getElementById('modalBody').textContent=text;document.getElementById('modal').style.display='flex'}function closeModal(){document.getElementById('modal').style.display='none'}function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),4200)}
+    addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});check();
+  </script>
+</body>
+</html>"""
+
+
+@app.get("/panel", response_class=HTMLResponse)
+def panel_page():
+    return HTMLResponse(_panel_html())
+
+
+@app.post("/panel/login")
+def panel_login(payload: PanelLogin, response: Response):
+    configured = _panel_password()
+
+    if not configured:
+        raise HTTPException(500, "PANEL_PASSWORD não configurado no servidor")
+
+    if not hmac.compare_digest(payload.password or "", configured):
+        raise HTTPException(401, "Senha inválida")
+
+    token = _create_panel_token(payload.username or "cliente")
+
+    response.set_cookie(
+        key=PANEL_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=PANEL_SESSION_TTL_SECONDS,
+        path="/",
+    )
+
+    return {"ok": True, "message": "Login realizado"}
+
+
+@app.post("/panel/logout")
+def panel_logout(response: Response):
+    response.delete_cookie(PANEL_COOKIE_NAME, path="/")
+    return {"ok": True}
+
+
+@app.get("/panel/api/summary")
+def panel_summary(_: Dict[str, Any] = Depends(require_panel_session)):
+    files = list_rows("autodoc_files", limit=5000)
+    errors = list_rows("autodoc_errors", limit=5000)
+
+    def has_status(row, *parts):
+        s = str(row.get("status") or "").upper()
+        return any(p.upper() in s for p in parts)
+
+    return {
+        "ok": True,
+        "files_total": len(files),
+        "files_waiting_download": len([f for f in files if has_status(f, "AGUARDANDO_DOWNLOAD")]),
+        "files_saved": len([f for f in files if has_status(f, "SALVO", "SHAREPOINT")]),
+        "files_error": len([f for f in files if has_status(f, "ERRO", "ERROR") or f.get("error_message")]),
+        "errors_total": len(errors),
+    }
+
+
+@app.get("/panel/api/health")
+def panel_health(_: Dict[str, Any] = Depends(require_panel_session)):
+    out: Dict[str, Any] = {}
+
+    try:
+        out["api"] = health()
+    except Exception as e:
+        out["api"] = {"ok": False, "error": str(e)}
+
+    try:
+        out["security"] = security_status()
+    except Exception as e:
+        out["security"] = {"ok": False, "error": str(e)}
+
+    try:
+        out["db"] = health_check()
+    except Exception as e:
+        out["db"] = {"ok": False, "error": str(e)}
+
+    try:
+        sharepoint.token()
+        out["sharepoint"] = {"ok": True, "hostname": settings.sharepoint_hostname}
+    except Exception as e:
+        out["sharepoint"] = {"ok": False, "error": str(e)}
+
+    return out
+
+
+@app.get("/panel/api/settings")
+def panel_settings(_: Dict[str, Any] = Depends(require_panel_session)):
+    return {
+        "ok": True,
+        "app_name": settings.app_name,
+        "app_env": settings.app_env,
+        "production_enabled": settings.is_prod_enabled,
+        "multi_site_sharepoint": True,
+        "sharepoint_hostname": settings.sharepoint_hostname,
+        "autodoc_url_configured": bool(getattr(settings, "autodoc_url", "")),
+        "autodoc_login_url_configured": bool(getattr(settings, "autodoc_login_url", "")),
+        "autodoc_user_configured": bool(getattr(settings, "autodoc_user", "")),
+        "autodoc_headless": getattr(settings, "autodoc_headless", None),
+        "panel_password_configured": bool(_panel_password()),
+    }
+
+
+@app.get("/panel/api/files")
+def panel_files(
+    status: str = "",
+    limit: int = 500,
+    _: Dict[str, Any] = Depends(require_panel_session),
+):
+    return {
+        "ok": True,
+        "files": list_rows(
+            "autodoc_files",
+            limit=limit,
+            filters={"status": status} if status else None,
+        ),
+    }
+
+
+@app.get("/panel/api/emails")
+def panel_emails(
+    limit: int = 300,
+    _: Dict[str, Any] = Depends(require_panel_session),
+):
+    return {
+        "ok": True,
+        "emails": list_rows("autodoc_emails", limit=limit),
+    }
+
+
+@app.get("/panel/api/robot/jobs")
+def panel_robot_jobs(
+    status: str = "",
+    limit: int = 300,
+    _: Dict[str, Any] = Depends(require_panel_session),
+):
+    return {
+        "ok": True,
+        "jobs": list_rows(
+            "autodoc_robot_queue",
+            limit=limit,
+            filters={"status": status} if status else None,
+        ),
+    }
+
+
+@app.post("/panel/api/robot/jobs/next")
+def panel_robot_next(_: Dict[str, Any] = Depends(require_panel_session)):
+    job = claim_next_robot_job("dashboard-manual")
+
+    if not job:
+        return {
+            "ok": False,
+            "message": "Nenhum job PENDING disponível",
+            "job": None,
+        }
+
+    file_id = job.get("file_id") or (job.get("payload") or {}).get("id")
+    file_row = get_row("autodoc_files", file_id) if file_id else None
+
+    return {
+        "ok": True,
+        "job": job,
+        "file": file_row,
+    }
+
+
+@app.get("/panel/api/sites")
+def panel_sites(_: Dict[str, Any] = Depends(require_panel_session)):
+    return {
+        "ok": True,
+        "sites": list_rows("autodoc_sharepoint_sites", limit=1000),
+    }
+
+
+@app.get("/panel/api/errors")
+def panel_errors(
+    limit: int = 300,
+    _: Dict[str, Any] = Depends(require_panel_session),
+):
+    return {
+        "ok": True,
+        "errors": list_rows("autodoc_errors", limit=limit),
+    }
+
+
+@app.post("/panel/api/files/{file_id}/approve")
+def panel_file_approve(file_id: str, _: Dict[str, Any] = Depends(require_panel_session)):
+    return file_approve(file_id, True)
+
+
+@app.post("/panel/api/files/{file_id}/ignore")
+def panel_file_ignore(file_id: str, _: Dict[str, Any] = Depends(require_panel_session)):
+    return file_ignore(file_id, True)
+
+
+@app.post("/panel/api/files/{file_id}/queue")
+def panel_file_queue(file_id: str, _: Dict[str, Any] = Depends(require_panel_session)):
+    return queue_robot(file_id, True)
 
 
 # =========================================================
@@ -1069,7 +1498,7 @@ def autodoc_download_endpoint(
     name = payload.get("file_name") or (f or {}).get("file_name", "")
 
     try:
-        res = autodoc_download(project, path, name, context=f or payload)
+        res = autodoc_download(project, path, name)
 
         if f:
             update_row(
