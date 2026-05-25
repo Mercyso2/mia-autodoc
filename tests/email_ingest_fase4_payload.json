@@ -1,0 +1,12 @@
+﻿{
+  "source": "n8n",
+  "environment": "HML",
+  "message_id": "fase4-teste-manual-001",
+  "folder": "Autodoc",
+  "subject": "Resumo Instantâneo de Upload - SAE - GUANÁS",
+  "sender": "autodoc@teste.local",
+  "received_at": null,
+  "html": "<html><body><p>Projeto: SAE - GUANÁS</p><table><tr><th>Arquivo</th><th>Disciplina</th><th>Pasta</th><th>Título</th><th>Status</th><th>Usuário</th><th>Data</th></tr><tr><td>SAE-GUANAS-ARQ-R01.ifc</td><td>ARQUITETURA</td><td>ARQUITETURA/IFC</td><td>Modelo federado arquitetura</td><td>Publicado</td><td>Teste AutoDoc</td><td>2026-05-25 10:00</td></tr></table></body></html>",
+  "text": "Projeto: SAE - GUANÁS\nArquivo: SAE-GUANAS-ARQ-R01.ifc",
+  "attachments": []
+}
