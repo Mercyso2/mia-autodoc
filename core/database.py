@@ -10,6 +10,29 @@ from .logger import logger
 _client: Optional[Client] = None
 
 
+# Campos que podem ser timestamp/data no banco.
+# Nunca podemos enviar string vazia ("") para eles.
+TIMESTAMP_FIELD_NAMES = {
+    "received_at",
+    "processing_started_at",
+    "processing_finished_at",
+    "last_processed_at",
+    "approved_at",
+    "ignored_at",
+    "download_started_at",
+    "download_finished_at",
+    "upload_started_at",
+    "upload_finished_at",
+    "created_at",
+    "updated_at",
+    "hml_ready_at",
+    "folder_map_ready_at",
+    "prod_ready_at",
+    "last_sync_at",
+    "autodoc_datetime",
+}
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -30,12 +53,48 @@ def _table(name: str):
     return get_supabase_client().table(name)
 
 
-def _remove_none(data: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: v for k, v in data.items() if v is not None}
+def _is_blank(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and value.strip() == "")
+
+
+def _sanitize_top_level_value(key: str, value: Any) -> Any:
+    """
+    Sanitiza somente campos top-level que vão para colunas do Supabase.
+
+    Importante:
+    - JSONB interno pode conter strings vazias sem problema.
+    - Colunas timestamp/timestamptz NÃO aceitam "".
+    - Para produção, também removemos strings vazias top-level para evitar erro em colunas tipadas.
+    """
+    if value is None:
+        return None
+
+    # Nunca enviar string vazia para timestamp/date.
+    if key in TIMESTAMP_FIELD_NAMES and isinstance(value, str) and value.strip() == "":
+        return None
+
+    # Blindagem geral: top-level string vazia vira None.
+    # Isso evita erro de cast em uuid/timestamp/numeric quando algum fluxo mandar "".
+    if isinstance(value, str) and value.strip() == "":
+        return None
+
+    return value
+
+
+def _clean_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    clean: Dict[str, Any] = {}
+
+    for key, value in (data or {}).items():
+        sanitized = _sanitize_top_level_value(key, value)
+
+        if sanitized is not None:
+            clean[key] = sanitized
+
+    return clean
 
 
 def insert_row(table: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    clean_data = _remove_none(data)
+    clean_data = _clean_data(data)
     res = _table(table).insert(clean_data).execute()
     return res.data[0] if res.data else {}
 
@@ -45,7 +104,7 @@ def upsert_row(
     data: Dict[str, Any],
     on_conflict: Optional[str] = None,
 ) -> Dict[str, Any]:
-    clean_data = _remove_none(data)
+    clean_data = _clean_data(data)
 
     if on_conflict:
         q = _table(table).upsert(clean_data, on_conflict=on_conflict)
@@ -57,7 +116,7 @@ def upsert_row(
 
 
 def update_row(table: str, row_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    clean_data = _remove_none(data)
+    clean_data = _clean_data(data)
 
     if "updated_at" not in clean_data:
         clean_data["updated_at"] = now_iso()
@@ -90,26 +149,7 @@ def list_rows(
 
 
 def insert_history(**kwargs) -> Dict[str, Any]:
-    """
-    Registra histórico do pipeline.
-
-    Aceita os campos antigos:
-    - email_id
-    - file_id
-    - action
-    - file_name
-    - from_path
-    - to_path
-    - environment
-    - status
-
-    E também aceita campos novos:
-    - message
-    - payload
-    - obsolete_path
-    """
-
-    data = _remove_none(kwargs)
+    data = _clean_data(kwargs)
     return insert_row("autodoc_history", data)
 
 
