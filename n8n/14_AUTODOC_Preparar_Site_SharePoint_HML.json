@@ -1,0 +1,122 @@
+{
+  "name": "14 - AUTODOC | Preparar Site SharePoint HML",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "d7c5753c-2305-4dec-877a-453c59f5c187",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "siteRowId",
+              "value": "667fa115-a98e-4c80-8a43-49abf6542306",
+              "type": "string"
+            },
+            {
+              "name": "fileExtensions",
+              "value": "pdf,dwg",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f6f4f2b7-26c4-4089-a750-8ae825ff68f7",
+      "name": "Configurar site",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.apiBaseUrl}}/sharepoint/sites/{{$json.siteRowId}}/prepare-hml",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "file_extensions",
+              "value": "={{$json.fileExtensions}}"
+            }
+          ]
+        },
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": false
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "b93bca89-1779-4076-8eda-debf38cde40d",
+      "name": "POST /sharepoint/sites/{id}/prepare-hml",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Configurar site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configurar site": {
+      "main": [
+        [
+          {
+            "node": "POST /sharepoint/sites/{id}/prepare-hml",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

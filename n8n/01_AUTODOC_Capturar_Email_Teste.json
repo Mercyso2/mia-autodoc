@@ -1,0 +1,180 @@
+{
+  "name": "01 - AUTODOC | Capturar Email Teste",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "949ed5b4-68e1-466a-84d9-2dff7cf857ce",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "outlookFolder",
+              "value": "={{$env.N8N_OUTLOOK_FOLDER || 'Autodoc'}}",
+              "type": "string"
+            },
+            {
+              "name": "limit",
+              "value": 1,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1501c24e-adb7-4e92-a11c-2a56f7b36077",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": "={{$json.limit}}",
+        "filters": {
+          "folderId": "={{$env.N8N_OUTLOOK_FOLDER || 'Autodoc'}}",
+          "foldersToInclude": [
+            "={{$env.N8N_OUTLOOK_FOLDER || 'Autodoc'}}"
+          ]
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "79d2f7da-db84-4c06-b8c2-b8127fa9daf0",
+      "name": "Microsoft Outlook - Buscar emails",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "CONFIGURAR",
+          "name": "CONFIGURAR OUTLOOK"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const j = item.json || {};\n  const attachments = Object.entries(item.binary || {}).map(([key, b]) => ({\n    key,\n    file_name: b.fileName || b.file_name || '',\n    mime_type: b.mimeType || b.mime_type || '',\n    size: b.fileSize || b.file_size || 0\n  }));\n\n  const sender =\n    j.from?.emailAddress?.address ||\n    j.from?.emailAddress?.name ||\n    j.sender?.emailAddress?.address ||\n    j.sender?.emailAddress?.name ||\n    j.sender ||\n    j.from ||\n    '';\n\n  const html = j.body?.content || j.html || '';\n  const text = j.bodyPreview || j.text || html.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n\n  return {\n    json: {\n      source: 'n8n',\n      environment: 'HML',\n      message_id: j.id || j.internetMessageId || j.messageId || String(Date.now()),\n      folder: $('Config').item.json.outlookFolder || 'Autodoc',\n      subject: j.subject || '',\n      sender,\n      received_at: j.receivedDateTime || j.received_at || new Date().toISOString(),\n      html,\n      text,\n      attachments_count: attachments.length,\n      attachments\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "id": "e5672909-c8a4-4c80-9790-2a951813b6d5",
+      "name": "Normalizar email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "message_id",
+              "value": "={{$json.message_id}}",
+              "type": "string"
+            },
+            {
+              "name": "subject",
+              "value": "={{$json.subject}}",
+              "type": "string"
+            },
+            {
+              "name": "sender",
+              "value": "={{$json.sender}}",
+              "type": "string"
+            },
+            {
+              "name": "attachments_count",
+              "value": "={{$json.attachments_count}}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "965523dd-7be0-4d8a-9d4e-a6757436de77",
+      "name": "Mostrar resultado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1020,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Microsoft Outlook - Buscar emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft Outlook - Buscar emails": {
+      "main": [
+        [
+          {
+            "node": "Normalizar email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar email": {
+      "main": [
+        [
+          {
+            "node": "Mostrar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ca0e6fe9-fa5e-421a-8836-ecbdd0fa2b15",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "f3e8f200-fdba-4ff3-abd1-650fd32aeb3e",
+  "tags": []
+}

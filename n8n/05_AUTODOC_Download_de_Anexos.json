@@ -1,0 +1,370 @@
+{
+  "name": "05 - AUTODOC | Download de Anexos IMPORTAVEL",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "94cc6089-ce94-4646-bf76-5198726943f4",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "551c8f73-14ad-4386-b7bf-d78e749691bf",
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "id": "53fcc640-09a2-4148-9ed5-3e2bd80bdc0f",
+              "name": "outlookFolder",
+              "value": "={{$env.N8N_OUTLOOK_FOLDER || 'Autodoc'}}",
+              "type": "string"
+            },
+            {
+              "id": "f6a1d6c7-dba8-4115-b751-6e2b76eac683",
+              "name": "maxEmails",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f6aab695-373e-4343-98aa-2ffa62eca7b5",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": "={{$json.maxEmails || 1}}",
+        "filters": {
+          "folderId": "={{$env.N8N_OUTLOOK_FOLDER || 'Autodoc'}}",
+          "foldersToInclude": [
+            "={{$env.N8N_OUTLOOK_FOLDER || 'Autodoc'}}"
+          ]
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "75d12f33-4347-4cd4-ac2d-d0e70f8c7fa2",
+      "name": "Buscar email Autodoc",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "CONFIGURAR",
+          "name": "CONFIGURAR OUTLOOK"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const j = item.json || {};\n  const attachments = Object.entries(item.binary || {}).map(([key, b]) => ({\n    key,\n    file_name: b.fileName || b.file_name || '',\n    mime_type: b.mimeType || b.mime_type || '',\n    size: b.fileSize || b.file_size || 0\n  }));\n\n  const sender =\n    j.from?.emailAddress?.address ||\n    j.from?.emailAddress?.name ||\n    j.sender?.emailAddress?.address ||\n    j.sender?.emailAddress?.name ||\n    j.sender ||\n    j.from ||\n    '';\n\n  const html = j.body?.content || j.html || '';\n  const text = j.bodyPreview || j.text || html.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n\n  return {\n    json: {\n      source: 'n8n',\n      environment: 'HML',\n      message_id: j.id || j.internetMessageId || j.messageId || String(Date.now()),\n      folder: $('Config').item.json.outlookFolder || 'Autodoc',\n      subject: j.subject || '',\n      sender,\n      received_at: j.receivedDateTime || j.received_at || new Date().toISOString(),\n      html,\n      text,\n      attachments_count: attachments.length,\n      attachments\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "id": "dbd08f71-d4a9-447f-a7c3-d7a73e63580b",
+      "name": "Montar payload email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/emails/ingest",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": false
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "fb34e179-0cc1-46ad-add0-d9e5a6567e91",
+      "name": "POST /emails/ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        950,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/emails/{{$json.email_id}}/parse",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": false
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "928ef1b3-5392-456b-ac93-9ccfcac4f1b5",
+      "name": "POST /emails/{id}/parse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = $json.files || [];\nif (!files.length) {\n  return [{\n    json: {\n      ok: false,\n      stop_reason: 'PARSER_SEM_ARQUIVOS',\n      message: 'Parser não criou arquivos. Isso é esperado até o parser reconhecer o modelo real do relatório Autodoc.',\n      email_type: $json.email_type || 'DESCONHECIDO',\n      original: $json\n    }\n  }];\n}\n\nlet sourceBinary = {};\ntry {\n  sourceBinary = $('Buscar email Autodoc').item.binary || $('Buscar email com anexos').item.binary || {};\n} catch (e) {\n  sourceBinary = {};\n}\n\nfunction norm(v) {\n  return String(v || '')\n    .toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .trim();\n}\n\nconst out = [];\nfor (const f of files) {\n  let matchedKey = null;\n  const fn = norm(f.file_name || f.filename || f.name);\n  for (const [key, bin] of Object.entries(sourceBinary)) {\n    const bn = norm(bin.fileName || bin.file_name);\n    if (bn && fn && bn === fn) {\n      matchedKey = key;\n      break;\n    }\n  }\n  const item = { json: { ...f, matched_binary_key: matchedKey } };\n  if (matchedKey) item.binary = { file: sourceBinary[matchedKey] };\n  out.push(item);\n}\nreturn out;"
+      },
+      "id": "9c5a604e-4417-4c1f-8e13-8f9f99072d1c",
+      "name": "Explodir arquivos + anexos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "269534b1-b955-4b6f-9b00-bb3266311a52",
+              "leftValue": "={{$json.matched_binary_key}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d58660b8-4296-4dcc-a0d6-72268b6456c0",
+      "name": "IF tem anexo baixado",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/files/{{$json.id}}/upload-local",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": true
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "file"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "26d9baf4-5820-4cf0-9ceb-8468b8603af6",
+      "name": "POST /files/{id}/upload-local",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        180
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "fa848398-d279-46a9-8523-e8c64fa94867",
+      "name": "Sem anexo correspondente",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        420
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Buscar email Autodoc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar email Autodoc": {
+      "main": [
+        [
+          {
+            "node": "Montar payload email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar payload email": {
+      "main": [
+        [
+          {
+            "node": "POST /emails/ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /emails/ingest": {
+      "main": [
+        [
+          {
+            "node": "POST /emails/{id}/parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /emails/{id}/parse": {
+      "main": [
+        [
+          {
+            "node": "Explodir arquivos + anexos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explodir arquivos + anexos": {
+      "main": [
+        [
+          {
+            "node": "IF tem anexo baixado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF tem anexo baixado": {
+      "main": [
+        [
+          {
+            "node": "POST /files/{id}/upload-local",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem anexo correspondente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "26340fc9-53ed-4142-b952-2773b3ece2bd",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "6a73a228-55d4-4fcf-9375-2c0e4314cfe1",
+  "tags": []
+}

@@ -1,0 +1,190 @@
+{
+  "name": "03 - AUTODOC | Parser de Email",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "30b937ba-5e44-426b-a4fc-74cd72e45446",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "emailId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ebdd9a96-a2da-4e63-83e1-0019eaf69e2e",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.emailId}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "372abead-ec52-4ac3-9106-411373fbdeeb",
+      "name": "IF emailId informado",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        450,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/emails/{{$('Config').item.json.emailId}}/parse",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "65b39769-89af-4bfa-90fb-7bf4bc0f44e7",
+      "name": "Parse por ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/emails/parse-latest",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "3d296547-9c6f-43f3-afc3-3f62ba18fd28",
+      "name": "Parse último",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "IF emailId informado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF emailId informado": {
+      "main": [
+        [
+          {
+            "node": "Parse por ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse último",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "01e6a03c-9207-4095-8e93-c904866cada0",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "b657cff3-9b08-48e9-97c0-165dffc96cf3",
+  "tags": []
+}

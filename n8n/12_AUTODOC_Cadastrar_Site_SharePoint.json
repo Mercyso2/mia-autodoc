@@ -1,0 +1,123 @@
+{
+  "name": "12 - AUTODOC | Cadastrar Site SharePoint Multi-site",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "03615434-96c5-4821-9333-4dacfd6bd1e9",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "project_name",
+              "value": "SAE - GUANÁS",
+              "type": "string"
+            },
+            {
+              "name": "site_url",
+              "value": "https://netorg1198871.sharepoint.com/sites/COLE_AQUI_O_SITE",
+              "type": "string"
+            },
+            {
+              "name": "aliases",
+              "value": "SAE GUANAS, GUANÁS, SAE",
+              "type": "string"
+            },
+            {
+              "name": "library_name",
+              "value": "Documentos",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f0bd9e5f-fea5-4eb4-9a6b-bc70dc16c522",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.apiBaseUrl}}/sharepoint/sites/discover",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { project_name: $json.project_name, site_url: $json.site_url, aliases: $json.aliases, library_name: $json.library_name } }}",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": true
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "6ee445a4-669e-4a8c-a784-3ad59f643fd0",
+      "name": "POST /sharepoint/sites/discover",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "POST /sharepoint/sites/discover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "pinData": {}
+}

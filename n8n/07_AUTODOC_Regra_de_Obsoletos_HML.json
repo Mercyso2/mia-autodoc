@@ -1,0 +1,181 @@
+{
+  "name": "07 - AUTODOC | Regra de Obsoletos HML",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "fa882056-1565-4f98-a0ef-f82af3a88f15",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "fileId",
+              "value": "COLE_AQUI_FILE_ID",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "719afdf3-5dee-4cf0-ac41-5ed581bcab03",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.apiBaseUrl}}/files/{{$json.fileId}}/upload-hml",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": true
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "964b1a17-d4a3-4fb7-9289-a6315db5bbe9",
+      "name": "Upload HML primeira vez",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        470,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "e4051668-5cfc-45fb-9c32-efd6afcdfb85",
+      "name": "Aguardar 2s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/files/{{$('Config').item.json.fileId}}/upload-hml",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": true
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "14efdae6-7b99-448e-b42a-339d5ca93a23",
+      "name": "Upload HML segunda vez",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Upload HML primeira vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload HML primeira vez": {
+      "main": [
+        [
+          {
+            "node": "Aguardar 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar 2s": {
+      "main": [
+        [
+          {
+            "node": "Upload HML segunda vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "cf28e72b-84a8-4ae2-9b91-4dac0e199376",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "ea9aac9c-de46-4b5f-8f80-a415b7769ed4",
+  "tags": []
+}

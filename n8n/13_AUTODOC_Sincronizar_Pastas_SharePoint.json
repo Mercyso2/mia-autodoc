@@ -1,0 +1,146 @@
+{
+  "name": "13 - AUTODOC | Sincronizar Pastas SharePoint",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "3ec3d369-64f4-40a9-9f59-b6699988109a",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "siteRowId",
+              "value": "COLE_AQUI_ID_DA_LINHA_DO_SITE",
+              "type": "string"
+            },
+            {
+              "name": "baseFolder",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0a96c3c1-7223-47e9-8979-b4ddf975d9ac",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.apiBaseUrl}}/sharepoint/sites/{{$json.siteRowId}}/sync-folders?base_folder={{$json.baseFolder}}",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": true
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "9029c2b3-0125-4b40-936e-1479d1c0d265",
+      "name": "POST sync-folders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        500,
+        230
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/sharepoint/sites/{{$('Config').item.json.siteRowId}}/children?folder_path={{$('Config').item.json.baseFolder}}",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": true
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "c2d7d0b3-0b85-405f-82b8-339da61ebccb",
+      "name": "GET children",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        500,
+        390
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "POST sync-folders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "GET children",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "pinData": {}
+}

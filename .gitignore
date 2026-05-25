@@ -7,10 +7,18 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Credenciais
+# Credenciais reais
 .env
-.env.*
+.env.local
+.env.hml
+.env.prod
+.env.production
+.env.*.local
+.env.*.secret
+
+# Exemplos permitidos
 !.env.example
+!.env.production.example
 
 # Logs
 logs/

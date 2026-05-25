@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
@@ -7,6 +7,7 @@ import shutil
 
 from core.config import settings
 from core.database import *
+from core.security import require_api_key, security_status
 from core import statuses as st
 from services.email_parser import parse_email
 from services.sharepoint_mapper import discover_site_from_url, sync_site_folders, resolve_folder, target_path, bootstrap_hml_structure, generate_folder_map, prepare_site_hml
@@ -17,7 +18,7 @@ from robot.login_manager import check_logged_in, open_login_browser
 from robot.downloader import download as autodoc_download
 
 app = FastAPI(title='Autodoc Center V4 Multi-site SharePoint')
-app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])
+app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins_list, allow_methods=['*'], allow_headers=['*'])
 
 class EmailIngest(BaseModel):
     source: str='n8n'
@@ -46,6 +47,10 @@ class CorrectPath(BaseModel):
 def health():
     return {'status':'ok','service':settings.app_name,'environment':settings.app_env,'production_enabled':settings.is_prod_enabled,'multi_site_sharepoint': True}
 
+@app.get('/security/health')
+def security_health():
+    return security_status()
+
 @app.get('/db/health')
 def db_health():
     try: return health_check()
@@ -59,7 +64,7 @@ def sp_health():
     except Exception as e: raise HTTPException(500, str(e))
 
 @app.post('/sharepoint/sites/discover')
-def sp_discover(payload: SiteDiscover):
+def sp_discover(payload: SiteDiscover, _: bool = Depends(require_api_key)):
     try: return discover_site_from_url(payload.project_name, payload.site_url, payload.aliases, payload.library_name)
     except Exception as e: raise HTTPException(500, str(e))
 
@@ -68,19 +73,19 @@ def sp_sites():
     return list_rows('autodoc_sharepoint_sites', limit=1000)
 
 @app.post('/sharepoint/sites/{site_row_id}/sync-folders')
-def sp_sync_folders(site_row_id: str, base_folder: str=''):
+def sp_sync_folders(site_row_id: str, base_folder: str='', _: bool = Depends(require_api_key)):
     try: return {'ok': True, 'folders': sync_site_folders(site_row_id, base_folder)}
     except Exception as e: raise HTTPException(500, str(e))
 
 
 @app.post('/sharepoint/sites/{site_row_id}/bootstrap-hml')
-def sp_bootstrap_hml(site_row_id: str, base_folder: str=''):
+def sp_bootstrap_hml(site_row_id: str, base_folder: str='', _: bool = Depends(require_api_key)):
     """Cria automaticamente _AUTODOC_HOMOLOGACAO e subpastas no SharePoint."""
     try: return bootstrap_hml_structure(site_row_id, base_folder)
     except Exception as e: raise HTTPException(500, str(e))
 
 @app.post('/sharepoint/sites/{site_row_id}/generate-folder-map')
-def sp_generate_folder_map(site_row_id: str, file_extensions: str='pdf,dwg'):
+def sp_generate_folder_map(site_row_id: str, file_extensions: str='pdf,dwg', _: bool = Depends(require_api_key)):
     """Gera automaticamente autodoc_folder_map a partir das pastas sincronizadas."""
     try:
         exts = [x.strip() for x in file_extensions.split(',') if x.strip()]
@@ -88,7 +93,7 @@ def sp_generate_folder_map(site_row_id: str, file_extensions: str='pdf,dwg'):
     except Exception as e: raise HTTPException(500, str(e))
 
 @app.post('/sharepoint/sites/{site_row_id}/prepare-hml')
-def sp_prepare_hml(site_row_id: str, base_folder: str='', file_extensions: str='pdf,dwg'):
+def sp_prepare_hml(site_row_id: str, base_folder: str='', file_extensions: str='pdf,dwg', _: bool = Depends(require_api_key)):
     """Executa tudo: sincroniza pastas, cria estrutura HML e gera mapa de destino."""
     try:
         exts = [x.strip() for x in file_extensions.split(',') if x.strip()]
@@ -103,7 +108,7 @@ def sp_children(site_row_id: str, folder_path: str=''):
     except Exception as e: raise HTTPException(500, str(e))
 
 @app.post('/emails/ingest')
-def ingest(payload: EmailIngest):
+def ingest(payload: EmailIngest, _: bool = Depends(require_api_key)):
     try:
         email = upsert_row('autodoc_emails', {
             'message_id': payload.message_id, 'source': payload.source, 'environment': payload.environment,
@@ -118,7 +123,7 @@ def ingest(payload: EmailIngest):
         raise HTTPException(500, str(e))
 
 @app.post('/emails/{email_id}/parse')
-def parse_saved_email(email_id: str, force: bool=False):
+def parse_saved_email(email_id: str, force: bool=False, _: bool = Depends(require_api_key)):
     email = get_row('autodoc_emails', email_id)
     if not email: raise HTTPException(404, 'E-mail não encontrado')
     try:
@@ -147,7 +152,7 @@ def parse_saved_email(email_id: str, force: bool=False):
         raise HTTPException(500, str(e))
 
 @app.post('/emails/parse-latest')
-def parse_latest():
+def parse_latest(_: bool = Depends(require_api_key)):
     emails=list_rows('autodoc_emails',limit=1,filters={'status':st.EMAIL_RECEBIDO})
     if not emails: return {'ok': False, 'message':'Nenhum e-mail recebido pendente'}
     return parse_saved_email(emails[0]['id'])
@@ -166,18 +171,18 @@ def file_get(file_id: str):
     return f
 
 @app.post('/files/{file_id}/enrich-destination')
-def file_enrich(file_id: str):
+def file_enrich(file_id: str, _: bool = Depends(require_api_key)):
     try: return enrich_file_destination(file_id)
     except Exception as e: raise HTTPException(500,str(e))
 
 @app.post('/files/{file_id}/approve')
-def file_approve(file_id: str):
+def file_approve(file_id: str, _: bool = Depends(require_api_key)):
     f=update_row('autodoc_files',file_id,{'status':st.FILE_PRONTO,'approved':True})
     insert_history(email_id=f.get('email_id'),file_id=file_id,action=st.ACTION_APROVADO,file_name=f.get('file_name'),environment=settings.app_env,status='OK')
     return f
 
 @app.post('/files/{file_id}/correct-path')
-def file_correct(file_id: str, payload: CorrectPath):
+def file_correct(file_id: str, payload: CorrectPath, _: bool = Depends(require_api_key)):
     data={'sharepoint_suggested_path':payload.sharepoint_suggested_path,'status':st.FILE_AGUARDANDO_APROVACAO}
     if payload.sharepoint_site_ref: data['sharepoint_site_ref']=payload.sharepoint_site_ref
     if payload.sharepoint_drive_id: data['sharepoint_drive_id']=payload.sharepoint_drive_id
@@ -186,13 +191,13 @@ def file_correct(file_id: str, payload: CorrectPath):
     return f
 
 @app.post('/files/{file_id}/ignore')
-def file_ignore(file_id: str):
+def file_ignore(file_id: str, _: bool = Depends(require_api_key)):
     f=update_row('autodoc_files',file_id,{'status':st.FILE_IGNORADO})
     insert_history(email_id=f.get('email_id'),file_id=file_id,action=st.ACTION_IGNORADO,file_name=f.get('file_name'),environment=settings.app_env,status='OK')
     return f
 
 @app.post('/files/{file_id}/upload-local')
-def upload_local(file_id: str, file: UploadFile=File(...)):
+def upload_local(file_id: str, file: UploadFile=File(...), _: bool = Depends(require_api_key)):
     f=get_row('autodoc_files', file_id)
     if not f: raise HTTPException(404,'Arquivo não encontrado')
     dest=Path('storage/downloads') / f['file_name']
@@ -200,7 +205,7 @@ def upload_local(file_id: str, file: UploadFile=File(...)):
     return update_row('autodoc_files',file_id,{'local_path':str(dest),'status':st.FILE_BAIXADO})
 
 @app.post('/files/{file_id}/queue-robot')
-def queue_robot(file_id: str):
+def queue_robot(file_id: str, _: bool = Depends(require_api_key)):
     f=get_row('autodoc_files', file_id)
     if not f: raise HTTPException(404,'Arquivo não encontrado')
     job=insert_row('autodoc_robot_queue',{'file_id':file_id,'status':'PENDING','payload':f})
@@ -208,7 +213,7 @@ def queue_robot(file_id: str):
     return {'ok': True, 'job': job}
 
 @app.post('/files/{file_id}/upload-hml')
-def file_upload_hml(file_id: str):
+def file_upload_hml(file_id: str, _: bool = Depends(require_api_key)):
     try: return upload_hml(file_id)
     except Exception as e:
         insert_error('SHAREPOINT_UPLOAD_ERROR', str(e), file_id=file_id)
@@ -216,13 +221,13 @@ def file_upload_hml(file_id: str):
         raise HTTPException(500, str(e))
 
 @app.post('/autodoc/login/check')
-def autodoc_login_check(): return check_logged_in()
+def autodoc_login_check(_: bool = Depends(require_api_key)): return check_logged_in()
 
 @app.post('/autodoc/login/open')
-def autodoc_login_open(): return open_login_browser()
+def autodoc_login_open(_: bool = Depends(require_api_key)): return open_login_browser()
 
 @app.post('/autodoc/download')
-def autodoc_download_endpoint(payload: Dict[str,Any]):
+def autodoc_download_endpoint(payload: Dict[str,Any], _: bool = Depends(require_api_key)):
     file_id=payload.get('file_id')
     f=get_row('autodoc_files', file_id) if file_id else None
     project=payload.get('project') or (f or {}).get('project_detected','')

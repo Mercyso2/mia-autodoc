@@ -1,0 +1,251 @@
+{
+  "name": "06 - AUTODOC | Upload SharePoint HML",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a28ed6de-1045-4907-aebb-7c32c1c39681",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2dc19737-4ffd-40b2-8eae-87ecc609e4ac",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$json.apiBaseUrl}}/files/ready?limit=50",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "265056db-2a78-4862-b575-367c8351e327",
+      "name": "GET files ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// A API /files/ready pode retornar lista direta ou objeto {files:[...]}\nlet data = $json;\nlet files = [];\nif (Array.isArray(data)) files = data;\nelse if (Array.isArray(data.files)) files = data.files;\nelse if (data.id) files = [data];\n\nreturn files.map(f => ({ json: f }));"
+      },
+      "id": "afcc7c01-05a7-45e1-8825-0234c590bf1c",
+      "name": "Explodir files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.local_path}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "typeValidation": "strict"
+          }
+        },
+        "options": {}
+      },
+      "id": "32c9c5e7-00da-423d-b2dc-77330c8a786b",
+      "name": "IF tem local_path",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/files/{{$json.id}}/upload-hml",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": true
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "d911927c-6075-417a-92c1-d46fec45abb7",
+      "name": "POST upload HML",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/files/{{$json.id}}/queue-robot",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": true
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "09f495f2-77f1-4989-b6cf-a5b26172c36f",
+      "name": "Enviar para robô",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "GET files ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET files ready": {
+      "main": [
+        [
+          {
+            "node": "Explodir files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explodir files": {
+      "main": [
+        [
+          {
+            "node": "IF tem local_path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF tem local_path": {
+      "main": [
+        [
+          {
+            "node": "POST upload HML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar para robô",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4080f5ea-29c3-454e-a6a3-8050eb4a62e4",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "6003ee42-fbd4-493d-91c9-cac48a1c374b",
+  "tags": []
+}

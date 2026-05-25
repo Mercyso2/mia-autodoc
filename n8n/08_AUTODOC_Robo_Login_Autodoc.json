@@ -1,0 +1,205 @@
+{
+  "name": "08 - AUTODOC | Robô Login Autodoc",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "cea0ebc7-a6e8-4036-ac5d-e5e791836d3e",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9c8c9d7f-1138-46d7-bbd8-f3c176e9f823",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.apiBaseUrl}}/autodoc/login/check",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "c16c5dfd-7a35-49c8-95a6-df835fa9d370",
+      "name": "POST login check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        450,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.status}}",
+              "rightValue": "LOGGED_IN",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "typeValidation": "strict"
+          }
+        },
+        "options": {}
+      },
+      "id": "2cfe8ecf-7c53-4627-b55f-ae0de611d13c",
+      "name": "IF precisa login",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/autodoc/login/open",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "f421f177-cde4-441b-900b-7b2197c7131e",
+      "name": "POST open login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        950,
+        -100
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "05944345-1cc6-4952-bcbe-7756db197a5e",
+      "name": "Já logado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        950,
+        120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "POST login check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST login check": {
+      "main": [
+        [
+          {
+            "node": "IF precisa login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF precisa login": {
+      "main": [
+        [
+          {
+            "node": "POST open login",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Já logado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "109b891f-cf90-4e50-adb1-b0c9fadd6144",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "2bf0e703-de86-41db-9603-0ab48e9dee94",
+  "tags": []
+}

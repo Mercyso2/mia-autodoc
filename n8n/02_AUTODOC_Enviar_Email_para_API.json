@@ -1,0 +1,220 @@
+{
+  "name": "02 - AUTODOC | Enviar Email para API",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "31311f45-8ef2-42bf-8691-0ae020678d2b",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "outlookFolder",
+              "value": "={{$env.N8N_OUTLOOK_FOLDER || 'Autodoc'}}",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a0fe0795-d383-4f73-ac16-613a16df79bc",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "folderId": "={{$env.N8N_OUTLOOK_FOLDER || 'Autodoc'}}",
+          "foldersToInclude": [
+            "={{$env.N8N_OUTLOOK_FOLDER || 'Autodoc'}}"
+          ]
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "486b1fa2-3f43-4b01-99e1-56b5f39363c6",
+      "name": "Microsoft Outlook - Buscar 1 email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "CONFIGURAR",
+          "name": "CONFIGURAR OUTLOOK"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const j = item.json || {};\n  const attachments = Object.entries(item.binary || {}).map(([key, b]) => ({\n    key,\n    file_name: b.fileName || b.file_name || '',\n    mime_type: b.mimeType || b.mime_type || '',\n    size: b.fileSize || b.file_size || 0\n  }));\n\n  const sender =\n    j.from?.emailAddress?.address ||\n    j.from?.emailAddress?.name ||\n    j.sender?.emailAddress?.address ||\n    j.sender?.emailAddress?.name ||\n    j.sender ||\n    j.from ||\n    '';\n\n  const html = j.body?.content || j.html || '';\n  const text = j.bodyPreview || j.text || html.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n\n  return {\n    json: {\n      source: 'n8n',\n      environment: 'HML',\n      message_id: j.id || j.internetMessageId || j.messageId || String(Date.now()),\n      folder: $('Config').item.json.outlookFolder || 'Autodoc',\n      subject: j.subject || '',\n      sender,\n      received_at: j.receivedDateTime || j.received_at || new Date().toISOString(),\n      html,\n      text,\n      attachments_count: attachments.length,\n      attachments\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "id": "080bc604-2b9a-43d7-80d8-dad9b9b74e20",
+      "name": "Montar payload API",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/emails/ingest",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "f7d43e9c-9866-41de-be07-cc3e68ecf4fb",
+      "name": "POST /emails/ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/emails/{{$json.email_id}}/parse",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "f224e10d-d9c3-4510-bbb3-7e324311cb5b",
+      "name": "POST /emails/{id}/parse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1220,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Microsoft Outlook - Buscar 1 email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft Outlook - Buscar 1 email": {
+      "main": [
+        [
+          {
+            "node": "Montar payload API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar payload API": {
+      "main": [
+        [
+          {
+            "node": "POST /emails/ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /emails/ingest": {
+      "main": [
+        [
+          {
+            "node": "POST /emails/{id}/parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8cd7215b-1fe1-4c16-be1c-a13fcd2b98ee",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "e8df0fec-d888-4c6d-a560-6150f2a5690c",
+  "tags": []
+}

@@ -1,0 +1,230 @@
+{
+  "name": "04 - AUTODOC | Criar Fila de Arquivos",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "492fa980-bb01-48cf-840c-6445ba6c0beb",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7cbb62c4-6fe9-4637-93d9-9626d94429a8",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.apiBaseUrl}}/emails/parse-latest",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "94ae46f8-bb20-4999-a89f-8c9a920ca0b5",
+      "name": "Parse último email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = $json.files || [];\nif (!files.length) {\n  return [{\n    json: {\n      ok: false,\n      stop_reason: 'PARSER_SEM_ARQUIVOS',\n      message: 'Parser não criou arquivos. Isso é esperado até o parser reconhecer o modelo real do relatório Autodoc.',\n      email_type: $json.email_type || 'DESCONHECIDO',\n      original: $json\n    }\n  }];\n}\n\nlet sourceBinary = {};\ntry {\n  sourceBinary = $('Buscar email Autodoc').item.binary || $('Buscar email com anexos').item.binary || {};\n} catch (e) {\n  sourceBinary = {};\n}\n\nfunction norm(v) {\n  return String(v || '')\n    .toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .trim();\n}\n\nconst out = [];\nfor (const f of files) {\n  let matchedKey = null;\n  const fn = norm(f.file_name || f.filename || f.name);\n  for (const [key, bin] of Object.entries(sourceBinary)) {\n    const bn = norm(bin.fileName || bin.file_name);\n    if (bn && fn && bn === fn) {\n      matchedKey = key;\n      break;\n    }\n  }\n  const item = { json: { ...f, matched_binary_key: matchedKey } };\n  if (matchedKey) item.binary = { file: sourceBinary[matchedKey] };\n  out.push(item);\n}\nreturn out;"
+      },
+      "id": "a7ac47ed-dabd-4f03-83a2-f27c2a04c22f",
+      "name": "Explodir arquivos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.needs_autodoc_robot}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "660ea3ad-fe77-4c18-b31f-447aee464e96",
+      "name": "IF precisa robô",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        950,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Config').item.json.apiBaseUrl}}/files/{{$json.id}}/queue-robot",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "6035509c-26ef-477b-bcd5-974428476f0b",
+      "name": "POST queue robot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        -120
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "24c8641c-e62f-4a7b-9143-9564558d2af3",
+      "name": "Sem robô / pronto",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Parse último email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse último email": {
+      "main": [
+        [
+          {
+            "node": "Explodir arquivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explodir arquivos": {
+      "main": [
+        [
+          {
+            "node": "IF precisa robô",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF precisa robô": {
+      "main": [
+        [
+          {
+            "node": "POST queue robot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem robô / pronto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "282d46fa-c307-4e31-ad0c-7b7ce8a72e72",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "ae6adb26-fad3-4ae4-b29d-710f9a489106",
+  "tags": []
+}

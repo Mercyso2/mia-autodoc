@@ -1,0 +1,232 @@
+{
+  "name": "00 - AUTODOC | Healthcheck API",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "184b354a-03a3-445b-85f7-e465cf489ca1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "apiBaseUrl",
+              "value": "={$env.AUTODOC_API_URL || 'https://fernada-mia-autodoc-api.ipk3s7.easypanel.host'}",
+              "type": "string"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a8c1143e-502e-4481-8fc3-bd788c524849",
+      "name": "Config API",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$json.apiBaseUrl}}/health",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "f07f4c19-d756-4900-b175-5f227aec0903",
+      "name": "GET /health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        470,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$('Config API').item.json.apiBaseUrl}}/db/health",
+        "responseFormat": "json",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "56b81b4e-f204-4b83-bf5d-0d145117d986",
+      "name": "GET /db/health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        710,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$('Config API').item.json.apiBaseUrl}}/sharepoint/health",
+        "responseFormat": "json",
+        "options": {
+          "ignoreResponseCode": true
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AUTODOC-API-KEY",
+              "value": "={{$env.AUTODOC_API_KEY || ''}}"
+            },
+            {
+              "name": "X-AUTODOC-SOURCE",
+              "value": "n8n"
+            }
+          ]
+        }
+      },
+      "id": "1c92e356-afc5-47d0-a929-c18f9c0271d7",
+      "name": "GET /sharepoint/health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        950,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "health_ok",
+              "value": "={{$('GET /health').item.json.status === 'ok'}}",
+              "type": "boolean"
+            },
+            {
+              "name": "db_ok",
+              "value": "={{$('GET /db/health').item.json.ok === true}}",
+              "type": "boolean"
+            },
+            {
+              "name": "sharepoint_response",
+              "value": "={{JSON.stringify($json)}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b747442b-c54e-40bb-a7e6-e6bb7c77f170",
+      "name": "Resumo",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config API": {
+      "main": [
+        [
+          {
+            "node": "GET /health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /health": {
+      "main": [
+        [
+          {
+            "node": "GET /db/health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /db/health": {
+      "main": [
+        [
+          {
+            "node": "GET /sharepoint/health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /sharepoint/health": {
+      "main": [
+        [
+          {
+            "node": "Resumo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a1f14612-105f-4836-a74c-b22d9b45013b",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "4c009af1-25e2-4e2f-a9ba-427aac8d26be",
+  "tags": []
+}
