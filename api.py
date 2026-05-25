@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import hashlib
 import json
+import os
 import time
 import hmac
 import base64
@@ -245,16 +246,83 @@ PANEL_COOKIE_NAME = "autodoc_panel_session"
 PANEL_SESSION_TTL_SECONDS = 60 * 60 * 8
 
 
+def _read_env_file_value(key: str) -> str:
+    """
+    Fallback para ambientes como EasyPanel, Docker e serviços que criam
+    arquivo .env em vez de expor tudo diretamente em os.environ.
+
+    Não lança erro. Retorna string vazia quando não encontrar.
+    """
+    candidates = [
+        Path(".env"),
+        Path("/app/.env"),
+        Path("/code/.env"),
+        Path("/workspace/.env"),
+    ]
+
+    for path in candidates:
+        try:
+            if not path.exists():
+                continue
+
+            for raw_line in path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+
+                k, v = line.split("=", 1)
+
+                if k.strip() == key:
+                    return v.strip().strip('"').strip("'")
+        except Exception:
+            pass
+
+    return ""
+
+
+def _read_panel_value(*keys: str) -> str:
+    """
+    Lê configuração do painel em múltiplas origens:
+    1. Variável de ambiente real
+    2. Arquivo .env
+    3. settings do core.config
+    """
+    for key in keys:
+        value = os.getenv(key)
+        if value:
+            return value.strip()
+
+    for key in keys:
+        value = _read_env_file_value(key)
+        if value:
+            return value.strip()
+
+    for key in keys:
+        attr = key.lower()
+        value = getattr(settings, attr, None)
+        if value:
+            return str(value).strip()
+
+    return ""
+
+
+
 def _panel_secret() -> str:
     """
     Segredo usado para assinar a sessão do painel.
+
     Configure no EasyPanel:
     PANEL_SECRET_KEY=uma-string-grande-aleatoria
+
+    Fallbacks:
+    - AUTODOC_PANEL_SECRET_KEY
+    - AUTODOC_API_KEY
+    - API_KEY
     """
     return (
-        getattr(settings, "panel_secret_key", None)
-        or getattr(settings, "autodoc_api_key", None)
-        or getattr(settings, "api_key", None)
+        _read_panel_value("PANEL_SECRET_KEY", "AUTODOC_PANEL_SECRET_KEY")
+        or _read_panel_value("AUTODOC_API_KEY", "API_KEY")
         or "CHANGE_ME_PANEL_SECRET"
     )
 
@@ -262,14 +330,14 @@ def _panel_secret() -> str:
 def _panel_password() -> str:
     """
     Senha do painel.
+
     Configure no EasyPanel:
     PANEL_PASSWORD=sua-senha-forte
+
+    Fallback:
+    AUTODOC_PANEL_PASSWORD
     """
-    return (
-        getattr(settings, "panel_password", None)
-        or getattr(settings, "autodoc_panel_password", None)
-        or ""
-    )
+    return _read_panel_value("PANEL_PASSWORD", "AUTODOC_PANEL_PASSWORD")
 
 
 def _b64url(data: bytes) -> str:
@@ -468,6 +536,26 @@ def panel_page():
     return HTMLResponse(_panel_html())
 
 
+
+@app.get("/panel/env-check")
+def panel_env_check():
+    """
+    Diagnóstico seguro do painel.
+    Não exibe senhas/chaves, apenas informa se a API conseguiu ler as variáveis.
+    """
+    return {
+        "ok": True,
+        "panel_password_from_os": bool(os.getenv("PANEL_PASSWORD") or os.getenv("AUTODOC_PANEL_PASSWORD")),
+        "panel_password_from_env_file": bool(_read_env_file_value("PANEL_PASSWORD") or _read_env_file_value("AUTODOC_PANEL_PASSWORD")),
+        "panel_password_configured": bool(_panel_password()),
+        "panel_secret_configured": bool(_panel_secret()),
+        "panel_secret_from_os": bool(os.getenv("PANEL_SECRET_KEY") or os.getenv("AUTODOC_PANEL_SECRET_KEY")),
+        "panel_secret_from_env_file": bool(_read_env_file_value("PANEL_SECRET_KEY") or _read_env_file_value("AUTODOC_PANEL_SECRET_KEY")),
+        "panel_secret_configured": bool(_panel_secret()),
+        "cookie_secure": str(os.getenv("PANEL_COOKIE_SECURE", "true")).lower() not in {"0", "false", "no", "nao", "não"},
+    }
+
+
 @app.post("/panel/login")
 def panel_login(payload: PanelLogin, response: Response):
     configured = _panel_password()
@@ -484,7 +572,8 @@ def panel_login(payload: PanelLogin, response: Response):
         key=PANEL_COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=True,
+        # Em produção/EasyPanel use HTTPS. Em localhost, permita cookie sem secure.
+        secure=str(os.getenv("PANEL_COOKIE_SECURE", "true")).lower() not in {"0", "false", "no", "nao", "não"},
         samesite="lax",
         max_age=PANEL_SESSION_TTL_SECONDS,
         path="/",
@@ -560,6 +649,7 @@ def panel_settings(_: Dict[str, Any] = Depends(require_panel_session)):
         "autodoc_user_configured": bool(getattr(settings, "autodoc_user", "")),
         "autodoc_headless": getattr(settings, "autodoc_headless", None),
         "panel_password_configured": bool(_panel_password()),
+        "panel_secret_configured": bool(_panel_secret()),
     }
 
 
@@ -1498,7 +1588,10 @@ def autodoc_download_endpoint(
     name = payload.get("file_name") or (f or {}).get("file_name", "")
 
     try:
-        res = autodoc_download(project, path, name)
+        try:
+            res = autodoc_download(project, path, name, context=f or payload)
+        except TypeError:
+            res = autodoc_download(project, path, name)
 
         if f:
             update_row(
