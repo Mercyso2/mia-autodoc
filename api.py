@@ -66,6 +66,31 @@ class CorrectPath(BaseModel):
     sharepoint_suggested_path: str
 
 
+class RobotNextRequest(BaseModel):
+    worker_id: str = "manual-test-worker"
+
+
+class RobotCompleteRequest(BaseModel):
+    file_id: Optional[str] = None
+    local_path: Optional[str] = None
+    local_sha256: Optional[str] = None
+    local_size_bytes: Optional[int] = None
+    sharepoint_item_id: Optional[str] = None
+    sharepoint_web_url: Optional[str] = None
+    sharepoint_final_path: Optional[str] = None
+    saved_environment: Optional[str] = None
+    result: Dict[str, Any] = {}
+
+
+class RobotFailRequest(BaseModel):
+    file_id: Optional[str] = None
+    error_type: str = "ROBOT_ERROR"
+    message: str = ""
+    details: Dict[str, Any] = {}
+    retryable: bool = True
+    retry_delay_minutes: int = 5
+
+
 # =========================================================
 # Helpers gerais
 # =========================================================
@@ -762,6 +787,243 @@ def file_upload_hml(file_id: str, _: bool = Depends(require_api_key)):
             {
                 "status": st.FILE_ERRO,
                 "error_message": str(e),
+            },
+        )
+        raise HTTPException(500, str(e))
+
+
+
+
+# =========================================================
+# Robot queue / Worker — Fase 6
+# =========================================================
+
+@app.post("/robot/jobs/next")
+def robot_jobs_next(
+    payload: RobotNextRequest,
+    _: bool = Depends(require_api_key),
+):
+    """
+    Busca o próximo job PENDING e bloqueia para o worker informado.
+    """
+    try:
+        job = claim_next_robot_job(payload.worker_id)
+
+        if not job:
+            return {
+                "ok": False,
+                "message": "Nenhum job PENDING disponível",
+                "job": None,
+            }
+
+        file_id = job.get("file_id") or (job.get("payload") or {}).get("id")
+        file_row = get_row("autodoc_files", file_id) if file_id else None
+
+        return {
+            "ok": True,
+            "job": job,
+            "file": file_row,
+        }
+
+    except Exception as e:
+        insert_error(
+            "ROBOT_NEXT_JOB_ERROR",
+            str(e),
+            payload=payload.model_dump(),
+        )
+        raise HTTPException(500, str(e))
+
+
+@app.get("/robot/jobs/{job_id}")
+def robot_job_get(
+    job_id: str,
+    _: bool = Depends(require_api_key),
+):
+    job = get_robot_job(job_id)
+
+    if not job:
+        raise HTTPException(404, "Job não encontrado")
+
+    file_id = job.get("file_id") or (job.get("payload") or {}).get("id")
+    file_row = get_row("autodoc_files", file_id) if file_id else None
+
+    return {
+        "ok": True,
+        "job": job,
+        "file": file_row,
+    }
+
+
+@app.post("/robot/jobs/{job_id}/complete")
+def robot_job_complete(
+    job_id: str,
+    payload: RobotCompleteRequest,
+    _: bool = Depends(require_api_key),
+):
+    """
+    Marca o job como DONE e atualiza autodoc_files como salvo no SharePoint.
+    """
+    job = get_robot_job(job_id)
+
+    if not job:
+        raise HTTPException(404, "Job não encontrado")
+
+    file_id = payload.file_id or job.get("file_id") or (job.get("payload") or {}).get("id")
+
+    if not file_id:
+        raise HTTPException(400, "file_id ausente no job/payload")
+
+    now = now_iso()
+
+    result = {
+        **(payload.result or {}),
+        "file_id": file_id,
+        "local_path": payload.local_path,
+        "local_sha256": payload.local_sha256,
+        "local_size_bytes": payload.local_size_bytes,
+        "sharepoint_item_id": payload.sharepoint_item_id,
+        "sharepoint_web_url": payload.sharepoint_web_url,
+        "sharepoint_final_path": payload.sharepoint_final_path,
+        "saved_environment": payload.saved_environment or settings.app_env,
+        "completed_at": now,
+    }
+
+    try:
+        file_update = _clean_dict(
+            {
+                "status": _safe_get_status("FILE_SALVO_SHAREPOINT", "SALVO_SHAREPOINT"),
+                "local_path": payload.local_path,
+                "local_sha256": payload.local_sha256,
+                "local_size_bytes": payload.local_size_bytes,
+                "sharepoint_item_id": payload.sharepoint_item_id,
+                "sharepoint_web_url": payload.sharepoint_web_url,
+                "sharepoint_final_path": payload.sharepoint_final_path,
+                "saved_environment": payload.saved_environment or settings.app_env,
+                "download_finished_at": now,
+                "upload_finished_at": now,
+                "error_message": None,
+                "error_type": None,
+            }
+        )
+
+        file_row = update_row("autodoc_files", file_id, file_update)
+        job_row = complete_robot_job(job_id, result)
+
+        insert_history(
+            email_id=file_row.get("email_id"),
+            file_id=file_id,
+            action="ROBOT_JOB_DONE",
+            file_name=file_row.get("file_name"),
+            to_path=file_row.get("sharepoint_final_path") or file_row.get("sharepoint_suggested_path"),
+            environment=settings.app_env,
+            status="DONE",
+            message="Robô finalizou job e marcou arquivo como salvo no SharePoint",
+            payload={
+                "job_id": job_id,
+                "result": result,
+            },
+        )
+
+        return {
+            "ok": True,
+            "status": "DONE",
+            "job": job_row,
+            "file": file_row,
+        }
+
+    except Exception as e:
+        insert_error(
+            "ROBOT_COMPLETE_JOB_ERROR",
+            str(e),
+            file_id=file_id,
+            payload={
+                "job_id": job_id,
+                "payload": payload.model_dump(),
+            },
+        )
+        raise HTTPException(500, str(e))
+
+
+@app.post("/robot/jobs/{job_id}/fail")
+def robot_job_fail(
+    job_id: str,
+    payload: RobotFailRequest,
+    _: bool = Depends(require_api_key),
+):
+    """
+    Registra falha do job e decide retry ou ERROR.
+    """
+    job = get_robot_job(job_id)
+
+    if not job:
+        raise HTTPException(404, "Job não encontrado")
+
+    file_id = payload.file_id or job.get("file_id") or (job.get("payload") or {}).get("id")
+    attempts = int(job.get("attempts") or 0)
+    max_attempts = int(job.get("max_attempts") or 3)
+
+    error_payload = {
+        "error_type": payload.error_type,
+        "message": payload.message,
+        "details": payload.details or {},
+        "attempts": attempts,
+        "max_attempts": max_attempts,
+        "retryable": payload.retryable,
+        "failed_at": now_iso(),
+    }
+
+    try:
+        job_row = fail_robot_job(
+            job_id,
+            error_payload,
+            retryable=payload.retryable,
+            retry_delay_minutes=payload.retry_delay_minutes,
+        )
+
+        final_error = job_row.get("status") == "ERROR"
+
+        if file_id:
+            file_status = "ERRO_ROBO" if final_error else _safe_get_status("FILE_AGUARDANDO_DOWNLOAD", "AGUARDANDO_DOWNLOAD")
+
+            update_row(
+                "autodoc_files",
+                file_id,
+                {
+                    "status": file_status,
+                    "error_type": payload.error_type,
+                    "error_message": payload.message,
+                    "retry_count": attempts,
+                    "last_processed_at": now_iso(),
+                },
+            )
+
+            insert_error(
+                payload.error_type,
+                payload.message,
+                file_id=file_id,
+                payload={
+                    "job_id": job_id,
+                    "details": payload.details,
+                    "job_status": job_row.get("status"),
+                },
+                status="ABERTO" if final_error else "RETRY",
+            )
+
+        return {
+            "ok": True,
+            "status": job_row.get("status"),
+            "retry_scheduled": job_row.get("status") == "PENDING",
+            "job": job_row,
+        }
+
+    except Exception as e:
+        insert_error(
+            "ROBOT_FAIL_JOB_ERROR",
+            str(e),
+            file_id=file_id,
+            payload={
+                "job_id": job_id,
+                "payload": payload.model_dump(),
             },
         )
         raise HTTPException(500, str(e))

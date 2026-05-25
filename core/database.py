@@ -182,3 +182,130 @@ def insert_error(
 def health_check() -> Dict[str, Any]:
     data = _table("autodoc_settings").select("key,value").limit(1).execute().data
     return {"ok": True, "sample": data}
+
+# =========================================================
+# Robot queue helpers — Fase 6
+# =========================================================
+
+def _is_due_now(value: Any) -> bool:
+    """True quando next_attempt_at está vazio ou já venceu."""
+    if value in (None, ""):
+        return True
+    try:
+        raw = str(value).replace("Z", "+00:00")
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt <= datetime.now(timezone.utc)
+    except Exception:
+        return True
+
+
+def claim_next_robot_job(worker_id: str, limit: int = 25) -> Optional[Dict[str, Any]]:
+    """
+    Busca e bloqueia o próximo job PENDING.
+
+    Observação: seguro para HML/um worker. Para múltiplos workers em produção,
+    o ideal é evoluir para RPC Postgres com SELECT FOR UPDATE SKIP LOCKED.
+    """
+    worker = (worker_id or "autodoc-worker").strip() or "autodoc-worker"
+
+    res = (
+        _table("autodoc_robot_queue")
+        .select("*")
+        .eq("status", "PENDING")
+        .order("priority", desc=False)
+        .order("created_at", desc=False)
+        .limit(limit)
+        .execute()
+    )
+
+    picked: Optional[Dict[str, Any]] = None
+
+    for job in res.data or []:
+        attempts = int(job.get("attempts") or 0)
+        max_attempts = int(job.get("max_attempts") or 3)
+        if attempts >= max_attempts:
+            continue
+        if not _is_due_now(job.get("next_attempt_at")):
+            continue
+        picked = job
+        break
+
+    if not picked:
+        return None
+
+    attempts = int(picked.get("attempts") or 0) + 1
+    now = now_iso()
+
+    return update_row(
+        "autodoc_robot_queue",
+        picked["id"],
+        {
+            "status": "RUNNING",
+            "locked_by": worker,
+            "locked_at": now,
+            "started_at": picked.get("started_at") or now,
+            "attempts": attempts,
+            "last_error": None,
+            "next_attempt_at": None,
+        },
+    )
+
+
+def complete_robot_job(job_id: str, result: Dict[str, Any]) -> Dict[str, Any]:
+    """Finaliza job como DONE."""
+    now = now_iso()
+    return update_row(
+        "autodoc_robot_queue",
+        job_id,
+        {
+            "status": "DONE",
+            "result": result or {},
+            "last_error": None,
+            "locked_by": None,
+            "locked_at": None,
+            "finished_at": now,
+            "next_attempt_at": None,
+        },
+    )
+
+
+def fail_robot_job(
+    job_id: str,
+    error_payload: Dict[str, Any],
+    retryable: bool = True,
+    retry_delay_minutes: int = 5,
+) -> Dict[str, Any]:
+    """Marca falha do job. Se ainda puder tentar, volta para PENDING; senão vira ERROR."""
+    from datetime import timedelta
+
+    job = get_row("autodoc_robot_queue", job_id)
+    if not job:
+        raise RuntimeError(f"Job não encontrado: {job_id}")
+
+    attempts = int(job.get("attempts") or 0)
+    max_attempts = int(job.get("max_attempts") or 3)
+    should_retry = bool(retryable) and attempts < max_attempts
+
+    now_dt = datetime.now(timezone.utc)
+    data: Dict[str, Any] = {
+        "status": "PENDING" if should_retry else "ERROR",
+        "last_error": error_payload or {},
+        "locked_by": None,
+        "locked_at": None,
+    }
+
+    if should_retry:
+        data["next_attempt_at"] = (now_dt + timedelta(minutes=max(1, int(retry_delay_minutes or 5)))).isoformat()
+        data["finished_at"] = None
+    else:
+        data["next_attempt_at"] = None
+        data["finished_at"] = now_dt.isoformat()
+
+    return update_row("autodoc_robot_queue", job_id, data)
+
+
+def get_robot_job(job_id: str) -> Optional[Dict[str, Any]]:
+    return get_row("autodoc_robot_queue", job_id)
+
