@@ -768,6 +768,157 @@ def _panel_html() -> str:
     .modal-body{padding:20px}
     .toast{position:fixed;right:20px;bottom:20px;z-index:90;max-width:440px;background:#101012;border:1px solid var(--line);border-radius:20px;padding:14px 16px;color:var(--text);box-shadow:0 18px 60px rgba(0,0,0,.38)}
 
+
+    /* Premium v2 refinements */
+    .hero.compact{
+      grid-template-columns:minmax(0,1fr) minmax(360px,.58fr);
+    }
+    .hero-card.compact{
+      min-height:190px;
+      padding:24px 26px;
+    }
+    .hero-card.compact h3{
+      font-size:30px;
+      max-width:760px;
+    }
+    .priority-list.compact{
+      max-height:395px;
+      overflow:auto;
+      padding-right:4px;
+    }
+    .priority-item{
+      position:relative;
+    }
+    .priority-item .item-action{
+      margin-top:12px;
+    }
+    .progress-panel .panel-body{
+      padding:20px;
+    }
+    .progress-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:14px;
+      margin-bottom:16px;
+    }
+    .progress-mini{
+      padding:14px 16px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:rgba(255,255,255,.026);
+    }
+    .progress-mini span{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.11em;
+      margin-bottom:8px;
+    }
+    .progress-mini b{
+      display:block;
+      font-size:24px;
+      letter-spacing:-.04em;
+    }
+    .progress-track{
+      height:14px;
+      border-radius:999px;
+      background:#08080a;
+      border:1px solid var(--line);
+      overflow:hidden;
+      display:flex;
+    }
+    .progress-seg{
+      height:100%;
+      min-width:0;
+      transition:width .3s ease;
+    }
+    .progress-seg.saved{background:linear-gradient(90deg,rgba(34,197,94,.9),rgba(34,197,94,.55))}
+    .progress-seg.pending{background:linear-gradient(90deg,rgba(245,158,11,.9),rgba(245,158,11,.55))}
+    .progress-seg.attention{background:linear-gradient(90deg,rgba(239,68,68,.85),rgba(169,121,139,.75))}
+    .progress-legend{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:12px;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .legend-dot{
+      width:9px;
+      height:9px;
+      border-radius:999px;
+      display:inline-block;
+      margin-right:6px;
+    }
+    .legend-dot.saved{background:var(--ok)}
+    .legend-dot.pending{background:var(--warn)}
+    .legend-dot.attention{background:var(--danger)}
+    .system-grid{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(360px,.78fr);
+      gap:18px;
+      margin-bottom:18px;
+      align-items:start;
+    }
+    .scroll-area{
+      max-height:430px;
+      overflow:auto;
+    }
+    .error-message{
+      max-width:420px;
+      white-space:normal;
+      color:var(--text-2);
+      line-height:1.5;
+    }
+    .config-summary{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:12px;
+      padding:18px 20px;
+    }
+    .config-chip{
+      padding:14px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:rgba(255,255,255,.026);
+    }
+    .config-chip span{
+      display:block;
+      color:var(--muted);
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.10em;
+      margin-bottom:8px;
+    }
+    .config-chip b{
+      display:block;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .config-json{
+      display:none;
+      padding:0 20px 20px;
+    }
+    .config-json.open{
+      display:block;
+    }
+    .client-safe-note{
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.6;
+      margin-top:10px;
+    }
+    @media(max-width:1220px){
+      .hero.compact,.system-grid{grid-template-columns:1fr}
+      .progress-grid,.config-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:620px){
+      .progress-grid,.config-summary{grid-template-columns:1fr}
+      .priority-list.compact{max-height:none}
+    }
+
     @media(max-width:1220px){
       .app{grid-template-columns:1fr}
       aside{position:relative;height:auto}
@@ -890,8 +1041,8 @@ def _panel_html() -> str:
       </header>
 
       <section id="view-dashboard" class="view active">
-        <div class="hero">
-          <div class="hero-card">
+        <div class="hero compact">
+          <div class="hero-card compact">
             <div class="eyebrow">MIA AUTODOC</div>
             <h3>Operação documental automatizada com uma experiência premium.</h3>
             <p>O dashboard inicial mostra somente o que importa para tomada de decisão. Indicadores técnicos, integrações e diagnósticos ficam separados na área Sistema.</p>
@@ -903,9 +1054,9 @@ def _panel_html() -> str:
             </div>
           </div>
 
-          <div class="hero-card">
+          <div class="hero-card compact">
             <div class="eyebrow">Prioridades</div>
-            <div id="priorityList" class="priority-list"></div>
+            <div id="priorityList" class="priority-list compact"></div>
           </div>
         </div>
 
@@ -914,6 +1065,32 @@ def _panel_html() -> str:
           <div class="card stat"><div class="stat-label">Aguardando download</div><div id="kPending" class="stat-value">--</div><div class="stat-meta">Itens prontos para automação</div></div>
           <div class="card stat"><div class="stat-label">Salvos</div><div id="kSaved" class="stat-value">--</div><div class="stat-meta">Arquivos concluídos</div></div>
           <div class="card stat"><div class="stat-label">Com atenção</div><div id="kErrors" class="stat-value">--</div><div class="stat-meta">Erros ou exceções</div></div>
+        </div>
+
+        <div class="panel progress-panel">
+          <div class="panel-head">
+            <div>
+              <h3>Resumo da operação</h3>
+              <p>Distribuição visual dos arquivos concluídos, pendentes e com atenção.</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="progress-grid">
+              <div class="progress-mini"><span>Concluídos</span><b id="pSaved">0</b></div>
+              <div class="progress-mini"><span>Pendentes</span><b id="pPending">0</b></div>
+              <div class="progress-mini"><span>Atenção</span><b id="pAttention">0</b></div>
+            </div>
+            <div class="progress-track">
+              <div id="barSaved" class="progress-seg saved" style="width:0%"></div>
+              <div id="barPending" class="progress-seg pending" style="width:0%"></div>
+              <div id="barAttention" class="progress-seg attention" style="width:0%"></div>
+            </div>
+            <div class="progress-legend">
+              <span><i class="legend-dot saved"></i>Salvos</span>
+              <span><i class="legend-dot pending"></i>Aguardando download</span>
+              <span><i class="legend-dot attention"></i>Erros/atenção</span>
+            </div>
+          </div>
         </div>
 
         <div class="panel">
@@ -986,13 +1163,13 @@ def _panel_html() -> str:
       </section>
 
       <section id="view-system" class="view">
-        <div class="split">
+        <div class="system-grid">
           <div class="panel">
             <div class="panel-head">
               <div><h3>Status dos serviços</h3><p>Diagnóstico técnico separado do dashboard executivo.</p></div>
               <button class="btn secondary small" onclick="loadHealth()">Testar</button>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap scroll-area">
               <table>
                 <thead><tr><th>Serviço</th><th>Status</th><th>Detalhes</th></tr></thead>
                 <tbody id="healthRows"></tbody>
@@ -1002,7 +1179,7 @@ def _panel_html() -> str:
 
           <div class="panel">
             <div class="panel-head"><div><h3>Erros recentes</h3><p>Ocorrências técnicas e operacionais registradas.</p></div></div>
-            <div class="table-wrap">
+            <div class="table-wrap scroll-area">
               <table>
                 <thead><tr><th>Tipo</th><th class="wrap">Mensagem</th><th>Status</th><th>Ações</th></tr></thead>
                 <tbody id="errorsRows"></tbody>
@@ -1012,8 +1189,16 @@ def _panel_html() -> str:
         </div>
 
         <div class="panel">
-          <div class="panel-head"><div><h3>Configurações carregadas</h3><p>Resumo seguro da configuração do ambiente, sem exibir segredos.</p></div></div>
-          <div class="panel-body"><pre id="settingsJson">{}</pre></div>
+          <div class="panel-head">
+            <div>
+              <h3>Configurações carregadas</h3>
+              <p>Resumo seguro da configuração do ambiente, sem exibir segredos.</p>
+              <div class="client-safe-note">O JSON técnico fica oculto por padrão para manter a experiência limpa para o cliente final.</div>
+            </div>
+            <button class="btn secondary small" onclick="toggleConfigJson()">Ver JSON técnico</button>
+          </div>
+          <div id="configSummary" class="config-summary"></div>
+          <div id="configJsonBox" class="config-json"><pre id="settingsJson">{}</pre></div>
         </div>
       </section>
     </main>
@@ -1107,12 +1292,26 @@ def _panel_html() -> str:
     async function loadSummary(){
       const summary = await call('/panel/api/summary');
       state.summary = summary;
-      document.getElementById('kFiles').textContent = summary.files_total ?? 0;
-      document.getElementById('kPending').textContent = summary.files_waiting_download ?? 0;
-      document.getElementById('kSaved').textContent = summary.files_saved ?? 0;
-      document.getElementById('kErrors').textContent = (summary.files_error ?? 0) + (summary.errors_total ?? 0);
-      document.getElementById('sideSaved').textContent = summary.files_saved ?? 0;
-      document.getElementById('sidePending').textContent = summary.files_waiting_download ?? 0;
+      const total = summary.files_total ?? 0;
+      const pending = summary.files_waiting_download ?? 0;
+      const saved = summary.files_saved ?? 0;
+      const attention = (summary.files_error ?? 0) + (summary.errors_total ?? 0);
+
+      document.getElementById('kFiles').textContent = total;
+      document.getElementById('kPending').textContent = pending;
+      document.getElementById('kSaved').textContent = saved;
+      document.getElementById('kErrors').textContent = attention;
+      document.getElementById('sideSaved').textContent = saved;
+      document.getElementById('sidePending').textContent = pending;
+
+      setTextSafe('pSaved', saved);
+      setTextSafe('pPending', pending);
+      setTextSafe('pAttention', attention);
+
+      const base = Math.max(total, saved + pending + attention, 1);
+      setWidthSafe('barSaved', (saved / base) * 100);
+      setWidthSafe('barPending', (pending / base) * 100);
+      setWidthSafe('barAttention', (attention / base) * 100);
     }
 
     async function loadFiles(){
@@ -1155,7 +1354,7 @@ def _panel_html() -> str:
 
       const important = state.files
         .filter(f => String(f.status || '').toUpperCase().includes('AGUARDANDO') || String(f.status || '').toUpperCase().includes('ERRO') || f.error_message)
-        .slice(0,5);
+        .slice(0,3);
 
       box.innerHTML = important.map(f => `
         <div class="priority-item">
@@ -1165,6 +1364,9 @@ def _panel_html() -> str:
             ${statusPill(f.status)}
             ${scorePill(f.confidence_score)}
             <span class="pill muted">${escapeHtml(f.autodoc_path || 'Sem caminho')}</span>
+          </div>
+          <div class="item-action">
+            <button class="btn secondary small" onclick='showJson("Arquivo", ${jsonAttr(f)})'>Ver arquivo</button>
           </div>
         </div>
       `).join('') || '<div class="empty">Nenhuma prioridade no momento.</div>';
@@ -1275,10 +1477,13 @@ def _panel_html() -> str:
       state.errors = data.errors || [];
       document.getElementById('errorsRows').innerHTML = state.errors.map(e => `
         <tr>
-          <td>${escapeHtml(e.error_type)}</td>
-          <td class="wrap">${escapeHtml(e.message)}</td>
-          <td>${statusPill(e.status)}</td>
-          <td><button class="btn secondary small" onclick='showJson("Erro", ${jsonAttr(e)})'>Ver</button></td>
+          <td>${escapeHtml(e.error_type || 'ERRO')}</td>
+          <td class="error-message">
+            ${escapeHtml(shortText(e.message || e.error_message || e.details || 'Sem mensagem'))}
+            <br><span class="mono">${formatDate(e.created_at)}</span>
+          </td>
+          <td>${statusPill(e.status || 'ABERTO')}</td>
+          <td><button class="btn secondary small" onclick='showJson("Erro", ${jsonAttr(e)})'>Detalhes</button></td>
         </tr>
       `).join('') || emptyRow(4, 'Nenhum erro registrado.');
     }
@@ -1286,6 +1491,31 @@ def _panel_html() -> str:
     async function loadSettings(){
       const data = await call('/panel/api/settings');
       document.getElementById('settingsJson').textContent = JSON.stringify(data, null, 2);
+
+      const summary = document.getElementById('configSummary');
+      if(summary){
+        summary.innerHTML = `
+          <div class="config-chip"><span>Ambiente</span><b>${escapeHtml(data.app_env || '—')}</b></div>
+          <div class="config-chip"><span>Produção</span><b>${data.production_enabled ? 'Liberada' : 'Bloqueada'}</b></div>
+          <div class="config-chip"><span>SharePoint</span><b>${escapeHtml(data.sharepoint_hostname || '—')}</b></div>
+          <div class="config-chip"><span>AutoDoc</span><b>${data.autodoc_url_configured ? 'Configurado' : 'Pendente'}</b></div>
+        `;
+      }
+    }
+
+    function toggleConfigJson(){
+      const box = document.getElementById('configJsonBox');
+      if(box) box.classList.toggle('open');
+    }
+
+    function setTextSafe(id, value){
+      const el = document.getElementById(id);
+      if(el) el.textContent = value;
+    }
+
+    function setWidthSafe(id, value){
+      const el = document.getElementById(id);
+      if(el) el.style.width = Math.max(0, Math.min(100, value || 0)) + '%';
     }
 
     async function fileAction(path){
