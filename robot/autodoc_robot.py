@@ -106,7 +106,8 @@ class AutodocRobot:
             add(source.get("link"))
             add(source.get("url"))
 
-            for key in ["autodoc_urls", "links"]:
+            # Suporta parser v2: ranked_links e download_plan por arquivo.
+            for key in ["autodoc_urls", "links", "ranked_links"]:
                 value = source.get(key)
                 if isinstance(value, list):
                     for item in value:
@@ -114,6 +115,36 @@ class AutodocRobot:
                             add(item)
                         elif isinstance(item, dict):
                             add(item.get("url"))
+
+            dp = source.get("download_plan")
+            if isinstance(dp, dict):
+                for key in ["ranked_links", "links"]:
+                    value = dp.get(key)
+                    if isinstance(value, list):
+                        for item in value:
+                            if isinstance(item, str):
+                                add(item)
+                            elif isinstance(item, dict):
+                                add(item.get("url"))
+
+        # Quando parser_payload guarda a inteligência completa, encontra o arquivo correspondente.
+        if isinstance(parser_payload.get("files"), list):
+            current_name = (context.get("file_name") or "").lower()
+            for file_plan in parser_payload.get("files") or []:
+                if not isinstance(file_plan, dict):
+                    continue
+                if current_name and (file_plan.get("file_name") or "").lower() != current_name:
+                    continue
+                add(file_plan.get("download_url"))
+                add(file_plan.get("file_page_url"))
+                for key in ["autodoc_urls", "links", "ranked_links"]:
+                    value = file_plan.get(key)
+                    if isinstance(value, list):
+                        for item in value:
+                            if isinstance(item, str):
+                                add(item)
+                            elif isinstance(item, dict):
+                                add(item.get("url"))
 
         # Prioriza URLs com download/arquivo antes de páginas genéricas.
         def score(url: str) -> int:

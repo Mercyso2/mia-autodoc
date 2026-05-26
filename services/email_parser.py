@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional
 
 from .normalizer import ext_of, normalize_text
+from .autodoc_email_intelligence import build_download_plan
 
 FILE_RE = re.compile(r'([A-Za-z0-9_\-\.\s\(\)À-ÿ]+\.(?:pdf|dwg|docx?|xlsx?|zip|rvt|ifc|png|jpg|jpeg))', re.I)
 URL_RE = re.compile(r'https?://[^\s<>"\']+', re.I)
@@ -386,11 +387,34 @@ def parse_email(subject: str = '', html: str = '', text: str = '', attachments: 
             }, email_links))
             known.add(fn.lower())
 
+    # Email Intelligence v2: gera download_plan, ranqueia 1..20+ links e preserva compatibilidade.
+    try:
+        intelligence = build_download_plan(
+            subject=subject,
+            html=html,
+            text=plain,
+            attachments=attachments,
+            base_files=files,
+            links=email_links,
+            project_hint=project,
+        )
+        files = intelligence.get('files') or files
+    except Exception as exc:
+        intelligence = {
+            'email_intelligence_version': '2.0',
+            'ok': False,
+            'error': str(exc),
+            'files': files,
+            'links': email_links[:50],
+        }
+
     return {
         'email_type': detect_email_type(subject, plain),
         'project': project,
         'files': files,
         'files_count': len(files),
-        'links': email_links[:50],
+        'links': email_links[:100],
+        'download_plan': intelligence,
+        'email_intelligence': intelligence,
         'raw_text': plain[:10000],
     }

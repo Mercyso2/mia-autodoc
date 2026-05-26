@@ -213,6 +213,9 @@ class AutodocWorker:
             file_name=file_name,
             has_download_url=bool((file_row.get("parser_payload") or {}).get("download_url") or file_row.get("download_url")),
             has_file_page_url=bool((file_row.get("parser_payload") or {}).get("file_page_url") or file_row.get("file_page_url")),
+            robot_engine=os.getenv("AUTODOC_ROBOT_ENGINE", "v1"),
+            robot_shadow=os.getenv("AUTODOC_ROBOT_SHADOW", "false"),
+            has_download_plan=bool((file_row.get("parser_payload") or {}).get("download_plan")),
         )
 
         result = autodoc_download(project, autodoc_path, file_name, context=file_row)
@@ -343,6 +346,8 @@ class AutodocWorker:
                         "dry_run": self.config.dry_run,
                         "real_download": self.config.real_download,
                         "dry_upload": self.config.dry_upload,
+                        "robot_engine": os.getenv("AUTODOC_ROBOT_ENGINE", "v1"),
+                        "robot_shadow": os.getenv("AUTODOC_ROBOT_SHADOW", "false"),
                     },
                     retryable=True,
                     retry_delay_minutes=2,
@@ -373,6 +378,8 @@ class AutodocWorker:
             dry_run=self.config.dry_run,
             real_download=self.config.real_download,
             dry_upload=self.config.dry_upload,
+            robot_engine=os.getenv("AUTODOC_ROBOT_ENGINE", "v1"),
+            robot_shadow=os.getenv("AUTODOC_ROBOT_SHADOW", "false"),
             poll_interval_seconds=self.config.poll_interval_seconds,
             max_idle_cycles=self.config.max_idle_cycles,
         )
